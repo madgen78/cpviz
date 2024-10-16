@@ -305,6 +305,7 @@ function dp_follow_destinations (&$route, $destination) {
       dp_follow_destinations($route, $rg['postdest']);
     }
 
+    if (isset($rg['members'])){
     ksort($rg['members']);
     foreach ($rg['members'] as $member => $name) {
       $route['parent_edge_label'] = ' RG Member';
@@ -325,7 +326,7 @@ function dp_follow_destinations (&$route, $destination) {
         dp_follow_destinations($route, "$member");
       }
     }  # end of ring groups
-
+    }
   #
   # Announcements
   #
