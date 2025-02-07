@@ -597,8 +597,8 @@ function dp_follow_destinations (&$route, $destination) {
   //preg_match not found
   } elseif (preg_match("/^qmember(Ext(\d+).+)/", $destination, $matches)) {
 		$qlabel=$matches[1];
-		if (isset($u[$dest]['name']) && $u[$dest]['name']!=''){echo $u[$dest]['name'];}
 		$qextension=$matches[2];
+	  	if (isset($u[$qextension]) && $u[$qextension]['name']!=''){echo $u[$qextension]['name'];}
 		$node->attribute('label', $qlabel);
 		$node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$qextension));
 		$node->attribute('target', '_blank');
