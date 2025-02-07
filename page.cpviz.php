@@ -79,7 +79,7 @@ if ($iroute != '') {
     dplog(5, "Doing follow dest ...");
     dp_follow_destinations($dproute, '');
     dplog(5, "Finished follow dest ...");
-    if
+    
     $gtext = $dproute['dpgraph']->attr('graph',array('rankdir'=>$direction));
     $gtext = $dproute['dpgraph']->render();
 	
