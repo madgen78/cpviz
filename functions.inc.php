@@ -905,14 +905,13 @@ function dplog($level, $msg) {
 }
 
 function secondsToTime($seconds){
-  $seconds = (int) $seconds;
-  
-  $hours = floor($seconds / 3600);
-  $minutes = floor(($seconds / 60) % 60);
-  $seconds = $seconds % 60;
-  
+  $seconds = (int) round($seconds); // Ensure whole number input
+
+  $hours = (int) floor($seconds / 3600);
+  $minutes = (int) floor(($seconds / 60) % 60);
+  $seconds = (int) ($seconds % 60);
+
   return $hours > 0 ? "$hours hrs, $minutes mins" : 
          ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
 }
-
 ?>
