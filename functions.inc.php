@@ -193,7 +193,7 @@ function dp_follow_destinations (&$route, $destination) {
     $qother = $matches[2];
 
     $q = $route['queues'][$qnum];
-    if($q['maxwait']==0){$maxwait='Unlimited';}else{$maxwait=secondsToTime($q['maxwait']);}
+    if($q['maxwait']==0 || $q['maxwait']=''){$maxwait='Unlimited';}else{$maxwait=secondsToTime($q['maxwait']);}
     $node->attribute('label', "Queue $qnum: ".htmlspecialchars($q['descr'],ENT_QUOTES));
     $node->attribute('URL', htmlentities('/admin/config.php?display=queues&view=form&extdisplay='.$qnum));
     $node->attribute('target', '_blank');
