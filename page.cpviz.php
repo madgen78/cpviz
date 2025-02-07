@@ -47,7 +47,7 @@ if ($inroutes){
 }
 
 if (empty($_POST) || $_POST['panzoom'] == 'on'){$panchecked='checked';}else{$panchecked='';}
-if (isset($_POST['direction'] && $_POST['direction']=='LR'){
+if (isset($_POST['direction']) && $_POST['direction']=='LR'){
 	$direction='LR';
 	$checked='checked';
 }else{
