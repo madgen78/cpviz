@@ -47,7 +47,7 @@ if ($inroutes){
 }
 
 if (empty($_POST) || $_POST['panzoom'] == 'on'){$panchecked='checked';}else{$panchecked='';}
-if ($_POST['direction']=='LR'){$checked='checked';}
+if (isset($_POST['direction']) && $_POST['direction']=='LR'){$checked='checked';}else{$checked='';}
 $html_txt .= "</datalist>\n";
 $html_txt .= "<input name=\"Submit\" type=\"submit\" value=\"Visualize Dial Plan\">\n";
 $html_txt .= "<input type=\"checkbox\" id=\"pan\" name=\"panzoom\" value=\"on\" $panchecked><label for=\"pan\">&nbsp;Pan/Zoom</label>&nbsp;&nbsp;\n";
