@@ -47,7 +47,13 @@ if ($inroutes){
 }
 
 if (empty($_POST) || $_POST['panzoom'] == 'on'){$panchecked='checked';}else{$panchecked='';}
-if (isset($_POST['direction']) && $_POST['direction']=='LR'){$checked='checked';}else{$checked='';}
+if (isset($_POST['direction'] && $_POST['direction']=='LR'){
+	$direction='LR';
+	$checked='checked';
+}else{
+	$direction='TB';
+	$checked='';
+}
 $html_txt .= "</datalist>\n";
 $html_txt .= "<input name=\"Submit\" type=\"submit\" value=\"Visualize Dial Plan\">\n";
 $html_txt .= "<input type=\"checkbox\" id=\"pan\" name=\"panzoom\" value=\"on\" $panchecked><label for=\"pan\">&nbsp;Pan/Zoom</label>&nbsp;&nbsp;\n";
@@ -73,8 +79,8 @@ if ($iroute != '') {
     dplog(5, "Doing follow dest ...");
     dp_follow_destinations($dproute, '');
     dplog(5, "Finished follow dest ...");
-	  
-    $gtext = $dproute['dpgraph']->attr('graph',array('rankdir'=>$_POST['direction']));
+    if
+    $gtext = $dproute['dpgraph']->attr('graph',array('rankdir'=>$direction));
     $gtext = $dproute['dpgraph']->render();
 	
     dplog(5, "Dial Plan Graph for $iroute:\n$gtext");
