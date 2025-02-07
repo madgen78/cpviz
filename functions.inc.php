@@ -193,7 +193,11 @@ function dp_follow_destinations (&$route, $destination) {
     $qother = $matches[2];
 
     $q = $route['queues'][$qnum];
-    if($q['maxwait']==0 || $q['maxwait']=''){$maxwait='Unlimited';}else{$maxwait=secondsToTime($q['maxwait']);}
+    if ($q['maxwait'] == 0 || $q['maxwait'] == '' || !is_numeric($q['maxwait'])) {
+ 	$maxwait = 'Unlimited';
+    } else {
+  	$maxwait = secondsToTime($q['maxwait']);
+    }
     $node->attribute('label', "Queue $qnum: ".htmlspecialchars($q['descr'],ENT_QUOTES));
     $node->attribute('URL', htmlentities('/admin/config.php?display=queues&view=form&extdisplay='.$qnum));
     $node->attribute('target', '_blank');
@@ -901,10 +905,14 @@ function dplog($level, $msg) {
 }
 
 function secondsToTime($seconds){
+  $seconds = (int) $seconds;
+  
   $hours = floor($seconds / 3600);
   $minutes = floor(($seconds / 60) % 60);
   $seconds = $seconds % 60;
-  return $hours > 0 ? "$hours hrs, $minutes mins" : ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
+  
+  return $hours > 0 ? "$hours hrs, $minutes mins" : 
+         ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
 }
 
 ?>
