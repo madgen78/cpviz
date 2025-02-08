@@ -904,14 +904,15 @@ function dplog($level, $msg) {
   return;
 }
 
-function secondsToTime($seconds){
-  $seconds = (int) round($seconds); // Ensure whole number input
+function secondsToTime($seconds) {
+    $seconds = (int) round($seconds); // Ensure whole number input
 
-  $hours = (int) floor($seconds / 3600);
-  $minutes = (int) floor(($seconds / 60) % 60);
-  $seconds = (int) ($seconds % 60);
+    $hours = (int) ($seconds / 3600);
+    $minutes = (int) (($seconds % 3600) / 60);
+    $seconds = $seconds % 60;
 
-  return $hours > 0 ? "$hours hrs, $minutes mins" : 
-         ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
+    return $hours > 0 ? "$hours hrs, $minutes mins" : 
+           ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
 }
+
 ?>
