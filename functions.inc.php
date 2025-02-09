@@ -280,8 +280,8 @@ function dp_follow_destinations (&$route, $destination) {
     if (!empty($ivr['entries'])){
       ksort($ivr['entries']);
       foreach ($ivr['entries'] as $selid => $ent) {
-        dplog(9, "ivr member $selid / $ent ...");
-		$route['parent_edge_label']= " Selection $ent[selection]";
+        //dplog(9, "ivr member $selid / $ent ...");
+	$route['parent_edge_label']= " Selection $ent[selection]";
         $route['parent_node'] = $node;
         dp_follow_destinations($route, $ent['dest']);
       }
@@ -656,6 +656,7 @@ function dp_load_tables(&$dproute) {
     if (! isset($dproute['timegroups'][$id])) {
       dplog(1, "timegroups_details id found for unknown timegroup, id=$id");
     } else {
+      if (!isset($dproute['timegroups'][$id]['time'])){$dproute['timegroups'][$id]['time']='';}
       $exploded=explode("|",$tgd['time']); 
       if ($exploded[0]!=='*'){$time=$exploded[0];}else{$time='';}
       if ($exploded[1]!=='*'){$dow=ucwords($exploded[1],'-').', ';}else{$dow='';}
