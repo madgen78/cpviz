@@ -664,7 +664,7 @@ function dp_load_tables(&$dproute) {
       if ($exploded[3]!=='*'){$month=ucfirst($exploded[3]).' ';}else{$month='';}
 
       $dproute['timegroups'][$id]['time'] .=$dow . $month . $date . $time.'\l';
-      $dproute['timegroups'][$id]['time'] .= "\n";
+      //$dproute['timegroups'][$id]['time'] .= "\n";
     }
   }
 
