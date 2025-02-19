@@ -33,7 +33,6 @@ The graph is interractive.
 [This modules code is licensed as GPLv3+](http://www.gnu.org/licenses/gpl-3.0.txt)
 
 ### Issues
-* Duplicate paths are not noted on the edge text for IVRs. 
-  - Example: Selection 5 and Selection 6 =  Sales Ring Group 605. Only 1 edge text is applied in this case.
-
+* Duplicate paths are now drawn.
+* Caller ID routes are now working.
 Please file bug reports by email to adam.volchko@gmail.com
