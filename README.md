@@ -11,6 +11,8 @@ The cpviz module shows you a graph of the call flow for any Inbound Route.  End-
 * Download cpviz.tar.gz or cpviz.zip to your computer.
 * Log in to your FreePBX system, go to Admin > Module Admin
 * Click Upload Modules
+* Download from web: https://github.com/madgen78/cpviz/archive/refs/heads/master.zip
+* OR
 * Set the type to "Upload (From Hard Disk)"
 * Select "Choose File" to select cpviz.tar.gz or cpviz.zip, then click "Upload (From Hard Disk)"
 * Click the "local module administration" link
@@ -35,4 +37,5 @@ The graph is interractive.
 ### Issues
 * Duplicate paths are now drawn.
 * Caller ID routes are now working.
+* 
 Please file bug reports by email to adam.volchko@gmail.com
