@@ -2,30 +2,28 @@
 if (!defined('FREEPBX_IS_AUTH')) { die('No direct script access allowed'); }
 
 // Log Level: 0 = total quiet, 9 = much verbose
-$dp_log_level = 6;
+$dp_log_level = 3;
 
 // Set some colors
-$pastels[] = "#7979FF";
-$pastels[] = "#86BCFF";
-$pastels[] = "#8ADCFF";
-$pastels[] = "#3DE4FC";
-$pastels[] = "#5FFEF7";
-$pastels[] = "#33FDC0";
-$pastels[] = "#ed9581";
-$pastels[] = "#81a6a2";
-$pastels[] = "#bae1e7";
-$pastels[] = "#eb94e2";
-$pastels[] = "#f8d580";
-$pastels[] = "#979291";
-$pastels[] = "#92b8ef";
-$pastels[] = "#ad8086";
+$pastels = [
+    "#7979FF", "#86BCFF", "#8ADCFF", "#3DE4FC", "#5FFEF7", "#33FDC0",
+    "#ed9581", "#81a6a2", "#bae1e7", "#eb94e2", "#f8d580", "#979291",
+    "#92b8ef", "#ad8086", "#F7A8A8", "#C5A3FF", "#FFC3A0", "#FFD6E0",
+    "#FFB3DE", "#D4A5A5", "#A5D4D4", "#F5C6EC", "#B5EAD7", "#C7CEEA",
+    "#E0BBE4", "#FFDFD3", "#FEC8D8", "#D1E8E2", "#E8D1E1", "#EAD5DC",
+    "#F9E79F", "#D6EAF8"
+];
 
 
-$neons[] = "#fe0000";
-$neons[] = "#fdfe02";
-$neons[] = "#0bff01";
-$neons[] = "#011efe";
-$neons[] = "#fe00f6";
+
+$neons = [
+    "#fe0000", "#fdfe02", "#0bff01", "#011efe", "#fe00f6",
+    "#ff5f1f", "#ff007f", "#39ff14", "#ff073a", "#ffae00",
+    "#08f7fe", "#ff44cc", "#ff6ec7", "#dfff00", "#32cd32",
+    "#ccff00", "#ff1493", "#00ffff", "#ff00ff", "#ff4500",
+    "#ff00aa", "#ff4c4c", "#7df9ff", "#adff2f", "#ff6347",
+    "#ff66ff", "#f2003c", "#ffcc00", "#ff69b4", "#0aff02"
+];
 
 function dp_load_incoming_routes() {
   global $db;
@@ -39,7 +37,8 @@ function dp_load_incoming_routes() {
   // Store the routes in a hash indexed by the inbound number
   foreach($results as $route) {
     $num = $route['extension'];
-    $routes[$num] = $route;
+		$cid = $route['cidnum'];
+    $routes[$num.$cid] = $route;
   }
   return $routes;
 }
@@ -47,7 +46,7 @@ function dp_load_incoming_routes() {
 function dp_find_route($routes, $num) {
 
   $match = array();
-  $pattern = '/[^0-9]/';   # remove all non-digits
+  $pattern = '/[^+0-9]/';   # remove all non-digits
   $num =  preg_replace($pattern, '', $num);
 
   // "extension" is the key for the routes hash
@@ -82,14 +81,21 @@ function dp_follow_destinations (&$route, $destination) {
   # a destination to look at.  For the first one, we get the destination from
   # the route object.
   if ($destination == '') {
-    $dpgraph->node($route['extension'],
-      array('label' => $route['extension'],
-				'shape' => 'cds',
-        'style' => 'filled',
-        'URL'=> htmlentities('/admin/config.php?display=did&view=form&extdisplay='.$route['extension'].'%2F'),
-				'target'=>'_blank',
-        'fillcolor' => 'darkseagreen')
-			);
+		if (empty($route['extension'])){$didLabel='ANY';}else{$didLabel=formatPhoneNumber($route['extension']);}
+		$didLink=$route['extension'].'%2F';
+		if (!empty($route['cidnum'])){
+			$didLabel.=' / '.formatPhoneNumber($route['cidnum']);
+			$didLink.=urlencode($route['cidnum']);
+		}
+			$dpgraph->node($route['extension'],
+				array(
+					'label' => $didLabel,
+					'shape' => 'cds',
+					'style' => 'filled',
+					'URL'   => htmlentities('/admin/config.php?display=did&view=form&extdisplay='.$didLink),
+					'target'=>'_blank',
+					'fillcolor' => 'darkseagreen')
+				);
     // $graph->node() returns the graph, not the node, so we always
     // have to get() the node after adding to the graph if we want
     // to save it for something.
@@ -130,6 +136,8 @@ function dp_follow_destinations (&$route, $destination) {
   if ($ntxt == '' ) { $ntxt = "(new node: $destination)"; }
   if ($dpgraph->hasEdge(array($route['parent_node'], $node))) {
     dplog(9, "NOT making an edge from $ptxt -> $ntxt");
+		$edge= $dpgraph->beginEdge(array($route['parent_node'], $node));
+		$edge->attribute('label', $route['parent_edge_label']);
   } else {
     dplog(9, "Making an edge from $ptxt -> $ntxt");
     $edge= $dpgraph->beginEdge(array($route['parent_node'], $node));
@@ -193,7 +201,11 @@ function dp_follow_destinations (&$route, $destination) {
     $qother = $matches[2];
 
     $q = $route['queues'][$qnum];
-    if($q['maxwait']==0){$maxwait='Unlimited';}else{$maxwait=secondsToTime($q['maxwait']);}
+    if ($q['maxwait'] == 0 || $q['maxwait'] == '' || !is_numeric($q['maxwait'])) {
+			$maxwait = 'Unlimited';
+    } else {
+  	$maxwait = secondsToTime($q['maxwait']);
+    }
     $node->attribute('label', "Queue $qnum: ".htmlspecialchars($q['descr'],ENT_QUOTES));
     $node->attribute('URL', htmlentities('/admin/config.php?display=queues&view=form&extdisplay='.$qnum));
     $node->attribute('target', '_blank');
@@ -213,9 +225,9 @@ function dp_follow_destinations (&$route, $destination) {
 			foreach ($q['members'] as $member => $qstatus) {
 				dplog(9, "queue member $member / $qstatus ...");
 				if ($qstatus == 'static') {
-					$route['parent_edge_label'] = ' Static Member';
+					$route['parent_edge_label'] = ' Static';
 				} else {
-					$route['parent_edge_label'] = ' Dynamic Member';
+					$route['parent_edge_label'] = ' Dynamic';
 				}
 				$route['parent_node'] = $node;
 				
@@ -276,8 +288,8 @@ function dp_follow_destinations (&$route, $destination) {
     if (!empty($ivr['entries'])){
       ksort($ivr['entries']);
       foreach ($ivr['entries'] as $selid => $ent) {
-        dplog(9, "ivr member $selid / $ent ...");
-		$route['parent_edge_label']= " Selection $ent[selection]";
+        
+				$route['parent_edge_label']= " Selection $ent[selection]";
         $route['parent_node'] = $node;
         dp_follow_destinations($route, $ent['dest']);
       }
@@ -305,6 +317,7 @@ function dp_follow_destinations (&$route, $destination) {
       dp_follow_destinations($route, $rg['postdest']);
     }
 
+    if (isset($rg['members'])){
     ksort($rg['members']);
     foreach ($rg['members'] as $member => $name) {
       $route['parent_edge_label'] = ' RG Member';
@@ -325,7 +338,7 @@ function dp_follow_destinations (&$route, $destination) {
         dp_follow_destinations($route, "$member");
       }
     }  # end of ring groups
-
+    }
   #
   # Announcements
   #
@@ -345,7 +358,7 @@ function dp_follow_destinations (&$route, $destination) {
     $rec='\\nRecord(no): disabled';
   }
 
-  $node->attribute('label', "Announcement: " .htmlspecialchars($an[description], ENT_QUOTES).$rec);
+  $node->attribute('label', "Announcement: " .htmlspecialchars($an['description'], ENT_QUOTES).$rec);
   $node->attribute('URL', htmlentities('/admin/config.php?display=announcement&view=form&extdisplay='.$annum));
   $node->attribute('target', '_blank');
   $node->attribute('shape', 'note');
@@ -417,7 +430,7 @@ function dp_follow_destinations (&$route, $destination) {
   $miscdestother = $matches[2];
 
   $miscdest = $route['miscdest'][$miscdestnum];
-  $node->attribute('label', "Misc Dest: " .htmlspecialchars($miscdest[description],ENT_QUOTES)." ($miscdest[destdial])");
+  $node->attribute('label', "Misc Dest: " .htmlspecialchars($miscdest['description'],ENT_QUOTES)." ($miscdest[destdial])");
   $node->attribute('URL', htmlentities('/admin/config.php?display=miscdests&view=form&extdisplay='.$miscdestnum));
   $node->attribute('target', '_blank');
   $node->attribute('shape', 'rpromoter');
@@ -501,13 +514,13 @@ function dp_follow_destinations (&$route, $destination) {
   } elseif (preg_match("/^from-did-direct,(\d+),(\d+)/", $destination, $matches)) {
   $extnum = $matches[1];
 	$extother = $matches[2];
-  $ext = $route['vm'][$vmnum];
+  //$ext = $route['vm'][$vmnum];
   
   $node->attribute('label', 'Extension: '.$extnum);
   $node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$extnum));
   $node->attribute('target', '_blank');
   $node->attribute('shape', 'house');
-  $node->attribute('fillcolor', $pastels[14]);
+  $node->attribute('fillcolor', $pastels[15]);
   $node->attribute('style', 'filled');
 
   #end of Extension (from-did-direct)
@@ -538,9 +551,9 @@ function dp_follow_destinations (&$route, $destination) {
 
     foreach ($daynight as $d){
       if ($d['dmode']=='day'){
-	 $route['parent_edge_label'] = ' Day Mode '.$dactive;
-         $route['parent_node'] = $node;
-         dp_follow_destinations($route, $d['dest']);
+				 $route['parent_edge_label'] = ' Day Mode '.$dactive;
+				 $route['parent_node'] = $node;
+				 dp_follow_destinations($route, $d['dest']);
       }elseif ($d['dmode']=='night'){
           $route['parent_edge_label'] = ' Night Mode '.$nactive;
           $route['parent_node'] = $node;
@@ -588,28 +601,95 @@ function dp_follow_destinations (&$route, $destination) {
   $node->attribute('style', 'filled');
 
   #end of Blackhole
+	
+	#
+  # Play Recording
+  #
+  } elseif (preg_match("/^play-system-recording,(\d+),(\d+)/", $destination, $matches)) {
+  $recID = $matches[1];
+  $recIDOther = $matches[2];
+  $playName=$route['recordings'][$recID]['displayname'];
+  $node->attribute('label', 'Play Recording: '.$playName);
+	$node->attribute('URL', htmlentities('/admin/config.php?display=recordings&action=edit&id='.$recID));
+  $node->attribute('target', '_blank');
+  $node->attribute('shape', 'rect');
+  $node->attribute('fillcolor', $pastels['16']);
+  $node->attribute('style', 'filled');
 
-  //preg_match not found
-  } elseif (preg_match("/^qmember(Ext(\d+).+)/", $destination, $matches)) {
+  #end of Blackhole
+
+  #
+  # Extension (dynroute)
+  #
+  } elseif (preg_match("/^dynroute-(\d+)/", $destination, $matches)) {
+
+	$dynnum = $matches[1];
+	$dynrt = $route['dynroute'][$dynnum];
+  $announcement = isset($route['recordings'][$dynrt['announcement_id']]['displayname']) ? $route['recordings'][$dynrt['announcement_id']]['displayname'] : null;
+  $node->attribute('label', 'DYN: '.$dynrt['name'].'\nAnnoucement: '.$announcement);
+  $node->attribute('URL', htmlentities('/admin/config.php?display=dynroute&action=edit&id='.$dynnum));
+  $node->attribute('target', '_blank');
+  $node->attribute('shape', 'component');
+  $node->attribute('fillcolor', $pastels[12]);
+  $node->attribute('style', 'filled');
+
+	//are the invalid and timeout destinations the same?
+  if ($dynrt['invalid_dest']==$dynrt['default_dest']){
+     $route['parent_edge_label']= " Invalid Input, Default ($dynrt[timeout] secs)";
+     $route['parent_node'] = $node;
+     dp_follow_destinations($route, $dynrt['invalid_dest']);
+  }else{
+		if ($dynrt['invalid_dest'] != '') {
+			$route['parent_edge_label']= ' Invalid Input';
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $dynrt['invalid_dest']);
+		}
+		if ($dynrt['default_dest'] != '') {
+			$route['parent_edge_label']= " Default ($dynrt[timeout] secs)";
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $dynrt['default_dest']);
+		}
+  }
+
+	if (!empty($dynrt['routes'])){
+		ksort($dynrt['routes']);
+		foreach ($dynrt['routes'] as $selid => $ent) {
+			
+			$route['parent_edge_label']= "  Match: $ent[selection]\n$ent[description]";
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $ent['dest']);
+		}
+	}
+  #end of Extension (dynroute)
+	
+	#
+  # Queue members (static and dynamic)
+  #
+	}elseif (preg_match("/^qmember(Ext(\d+).+)/", $destination, $matches)) {
 		$qlabel=$matches[1];
-		echo $u[$dest]['name'];
 		$qextension=$matches[2];
+	  if (isset($u[$qextension]) && $u[$qextension]['name']!=''){echo $u[$qextension]['name'];}
 		$node->attribute('label', $qlabel);
 		$node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$qextension));
 		$node->attribute('target', '_blank');
+		if ($route['parent_edge_label'] == ' Static') {
+			$node->attribute('fillcolor', $pastels[20]);
+		}else{
+			$node->attribute('fillcolor', $pastels[8]);
+		}
 		$node->attribute('style', 'filled');
 		
-		
+	#END of preg_match
+	
+	
+	//preg_match not found
 	}	else {
     dplog(1, "Unknown destination type: $destination");
-    if ($route['parent_edge_label'] == ' Dynamic Member') {
-      $node->attribute('fillcolor', $neons[1]);
-    } else {
-      $node->attribute('fillcolor', $pastels[12]);
-    }
-    $node->attribute('label', htmlspecialchars($destination,ENT_QUOTES));
-    $node->attribute('style', 'filled');
-  }
+    $node->attribute('fillcolor', $pastels[12]);
+		$node->attribute('label', htmlspecialchars($destination,ENT_QUOTES));
+		$node->attribute('style', 'filled');
+    
+  } 
 
 }
 
@@ -651,6 +731,7 @@ function dp_load_tables(&$dproute) {
     if (! isset($dproute['timegroups'][$id])) {
       dplog(1, "timegroups_details id found for unknown timegroup, id=$id");
     } else {
+      if (!isset($dproute['timegroups'][$id]['time'])){$dproute['timegroups'][$id]['time']='';}
       $exploded=explode("|",$tgd['time']); 
       if ($exploded[0]!=='*'){$time=$exploded[0];}else{$time='';}
       if ($exploded[1]!=='*'){$dow=ucwords($exploded[1],'-').', ';}else{$dow='';}
@@ -658,7 +739,7 @@ function dp_load_tables(&$dproute) {
       if ($exploded[3]!=='*'){$month=ucfirst($exploded[3]).' ';}else{$month='';}
 
       $dproute['timegroups'][$id]['time'] .=$dow . $month . $date . $time.'\l';
-      $dproute['timegroups'][$id]['time'] .= "\n";
+      //$dproute['timegroups'][$id]['time'] .= "\n";
     }
   }
 
@@ -710,8 +791,11 @@ function dp_load_tables(&$dproute) {
   if (DB::IsError($results)) {
     die_freepbx($results->getMessage()."<br><br>Error selecting from queues_details");       
   }
+	
+	$dyn_array=array();
   foreach($results as $qd) {
     $id = $qd['id'];
+		if (!in_array($id,$dyn_array)){$dyn_array[]=$id;}
     if ($qd['keyword'] == 'member') {
       $member = $qd['data'];
       if (preg_match("/Local\/(\d+)/", $member, $matches)) {
@@ -720,8 +804,22 @@ function dp_load_tables(&$dproute) {
 				$name_ext= htmlspecialchars('Ext'.$enum.'\\n'.$u[$enum]['name'],ENT_QUOTES);
 				$dproute['queues'][$id]['members'][$name_ext] = 'static';
       }
-    }
+    }	
   }
+	//dynamic members
+	
+	foreach ($dyn_array as $d){
+		$D='/usr/sbin/asterisk -rx "database show QPENALTY '.$d.'" | grep "/agents/" | cut -d\'/\' -f5 | cut -d\':\' -f1';
+		exec($D, $dynmem);
+		foreach ($dynmem as $mem){
+			$name_ext= htmlspecialchars('Ext'.$mem.'\\n'.$u[$enum]['name'],ENT_QUOTES);
+			$dproute['queues'][$d]['members'][$name_ext] = 'dynamic';
+		}
+	}
+	
+	//print_r($dynmem);
+	
+	
 	
   # IVRs
   $query = "select * from ivr_details";
@@ -773,7 +871,7 @@ function dp_load_tables(&$dproute) {
     $id = $an['announcement_id'];
     $dproute['announcements'][$id] = $an;
     $dest = $an['post_dest'];
-    dplog(9, "an dest:  an=$id   dest=$dest");
+    dplog(9, "announcement dest:  an=$id   dest=$dest");
     $dproute['announcements'][$id]['dest'] = $dest;
   }
 
@@ -845,6 +943,7 @@ function dp_load_tables(&$dproute) {
   foreach($results as $daynight) {
     $id = $daynight['ext'];
     $dproute['daynight'][$id][] = $daynight;
+		dplog(9, "daynight=$id");
   }
   
   # Feature Codes
@@ -856,6 +955,7 @@ function dp_load_tables(&$dproute) {
   foreach($results as $featurecodes) {
 	$id=$featurecodes['defaultcode'];
     $dproute['featurecodes'][$id] = $featurecodes;
+		dplog(9, "featurecodes=$id");
   }
 
   # Recordings
@@ -865,8 +965,9 @@ function dp_load_tables(&$dproute) {
     die_freepbx($results->getMessage()."<br><br>Error selecting from featurecodes");
   }
   foreach($results as $recordings) {
-	$id=$recordings['id'];
+		$id=$recordings['id'];
     $dproute['recordings'][$id] = $recordings;
+		dplog(9, "recordings=$id");
   }
 	
   # Languages
@@ -876,34 +977,126 @@ function dp_load_tables(&$dproute) {
     die_freepbx($results->getMessage()."<br><br>Error selecting from languages");
   }
   foreach($results as $languages) {
-	$id=$languages['language_id'];
+		$id=$languages['language_id'];
     $dproute['languages'][$id] = $languages;
+		dplog(9, "languages=$id");
   }
+	
+	# dynroute
+	$tableExists = $db->getOne("SHOW TABLES LIKE 'dynroute'");
+
+	if (!$tableExists) {
+			// Skip processing if the module is not installed
+			return;
+	}
+	
+	$query = "select * from dynroute";
+  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
+  if (DB::IsError($results)) {
+    //die_freepbx($results->getMessage()."<br><br>Error selecting from Dynamic Route");
+		return;
+  }
+  foreach($results as $dynroute) {
+		$id=$dynroute['id'];
+    $dproute['dynroute'][$id] = $dynroute;
+		dplog(9, "dynroute=$id");
+  }
+		
+	# dynroute_dests
+	$tableExists = $db->getOne("SHOW TABLES LIKE 'dynroute_dests'");
+
+	if (!$tableExists) {
+			// Skip processing if the module is not installed
+			return;
+	}
+
+  $query = "select * from dynroute_dests";
+  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
+  if (DB::IsError($results)) {
+    //die_freepbx($results->getMessage()."<br><br>Error selecting from Dynamic Route Destinations");
+		return;
+  }
+  foreach($results as $dynroute_dests) {
+    $id = $dynroute_dests['dynroute_id'];
+    $selid = $dynroute_dests['selection'];
+    dplog(9, "dynroute_dests:  dynroute=$id   match=$selid");
+    $dproute['dynroute'][$id]['routes'][$selid] = $dynroute_dests;
+  }
+	
 }
+# END load gobs of data.
 
 
 function dplog($level, $msg) {
-  global $dp_log_level;
+    global $dp_log_level;
 
-  if ($dp_log_level < $level) {
-    return;
-  }
+    if (!isset($dp_log_level) || $dp_log_level < $level) {
+        return;
+    }
 
-  $ts = date('m-d-Y H:i:s');
-  if(! $fd = fopen("/tmp/dpviz.log", "a")) {
-    print "Couldn't open log file.";
-    exit;
-  }
-  fwrite($fd, $ts . "  " . $msg . "\n");
-  fclose($fd);
-  return;
+    $ts = date('m-d-Y H:i:s');
+    $logFile = "/var/log/asterisk/dpviz.log";
+
+    $fd = fopen($logFile, "a");
+    if (!$fd) {
+        error_log("Couldn't open log file: $logFile");
+        return;
+    }
+
+    fwrite($fd, "[$ts] [Level $level] $msg\n");
+    fclose($fd);
 }
 
-function secondsToTime($seconds){
-  $hours = floor($seconds / 3600);
-  $minutes = floor(($seconds / 60) % 60);
-  $seconds = $seconds % 60;
-  return $hours > 0 ? "$hours hrs, $minutes mins" : ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
+function secondsToTime($seconds) {
+    $seconds = (int) round($seconds); // Ensure whole number input
+
+    $hours = (int) ($seconds / 3600);
+    $minutes = (int) (($seconds % 3600) / 60);
+    $seconds = $seconds % 60;
+
+    return $hours > 0 ? "$hours hrs, $minutes mins" : 
+           ($minutes > 0 ? "$minutes mins, $seconds secs" : "$seconds secs");
 }
+
+function formatPhoneNumber($phoneNumber) {
+    $phoneNumber = preg_replace('/[^0-9]/','',$phoneNumber);
+
+    if(strlen($phoneNumber) > 10) {
+        $countryCode = substr($phoneNumber, 0, strlen($phoneNumber)-10);
+        $areaCode = substr($phoneNumber, -10, 3);
+        $nextThree = substr($phoneNumber, -7, 3);
+        $lastFour = substr($phoneNumber, -4, 4);
+
+        $phoneNumber = '+'.$countryCode.' ('.$areaCode.') '.$nextThree.'-'.$lastFour;
+    }
+    else if(strlen($phoneNumber) == 10) {
+        $areaCode = substr($phoneNumber, 0, 3);
+        $nextThree = substr($phoneNumber, 3, 3);
+        $lastFour = substr($phoneNumber, 6, 4);
+
+        $phoneNumber = '('.$areaCode.') '.$nextThree.'-'.$lastFour;
+    }
+
+    return $phoneNumber;
+}
+function cpviz_edit($panzoom, $horizontal) {
+	FreePBX::Modules()->deprecatedFunction();
+	return FreePBX::Announcement()->editcpviz($panzoom, $horizontal);
+}
+
+function options_get() {
+	$row = \FreePBX::Cpviz()->getOptions();
+	$i = 0;
+	if(!empty($row) && is_array($row)) {
+		foreach ($row as $item) {
+			$row[$i] = $item;
+			$i++;
+		}
+		return $row;
+	} else {
+		return [];
+	}
+}
+
 
 ?>
