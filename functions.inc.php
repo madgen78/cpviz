@@ -46,7 +46,7 @@ function dp_load_incoming_routes() {
 function dp_find_route($routes, $num) {
 
   $match = array();
-  $pattern = '/[^+0-9]/';   # remove all non-digits
+  $pattern = '/[^_xX+0-9]/';   # remove all non-digits
   $num =  preg_replace($pattern, '', $num);
 
   // "extension" is the key for the routes hash
@@ -245,18 +245,24 @@ function dp_follow_destinations (&$route, $destination) {
     $iother = $matches[3];
 
     $ivr = $route['ivrs'][$inum];
-	  
+	  if (!empty($ivr['announcement'])){
+			$ivrRecName=$route['recordings'][$ivr['announcement']]['displayname'];
+		}else{
+			echo 'not found';
+			$ivrRecName='None';
+		}
+		
     //feature code exist?
     if ( isset($route['featurecodes']['*29'.$ivr['announcement']]) ){
       //custom feature code?
       if ($route['featurecodes']['*29'.$ivr['announcement']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['defaultcode'];}
       //is it enabled?
-      if ( ($route['recordings'][$ivr['announcement']]['fcode']== '1') && ($route['featurecodes']['*29'.$ivr['announcement']]['enabled']=='1') ){$rec='\\nRecord(yes): '.$featurenum;}else{$rec='\\nRecord(no): '.$featurenum;}
+      if ( ($route['recordings'][$ivr['announcement']]['fcode']== '1') && ($route['featurecodes']['*29'.$ivr['announcement']]['enabled']=='1') ){$rec='(yes): '.$featurenum;}else{$rec='(no): '.$featurenum;}
     }else{
-      $rec='\\nRecord(no): disabled';
+      $rec='(no): disabled';
     }
-	  
-    $node->attribute('label', "IVR: ".htmlspecialchars($ivr['name'], ENT_QUOTES).$rec);
+
+    $node->attribute('label', "IVR: ".htmlspecialchars($ivr['name'], ENT_QUOTES)."\\nAnnouncement: ".htmlspecialchars($ivrRecName, ENT_QUOTES)."\\lRecord ".$rec."\\l");
     $node->attribute('URL', htmlentities('/admin/config.php?display=ivr&action=edit&id='.$inum));
     $node->attribute('target', '_blank');
     $node->attribute('shape', 'component');
