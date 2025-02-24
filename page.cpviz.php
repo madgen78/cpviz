@@ -64,6 +64,7 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 			$gtext = str_replace(["\n", "+"], ["\\n", "\+"], $gtext);  // ugh, apparently viz chokes on newlines and +, wtf?
 			
 			?>
+			
 			<div class="fpbx-container">
 				<div id="vizContainer" class="display full-border">
 					<h2>Dial Plan For Inbound Route <?php echo formatPhoneNumber($extdisplay); if (!empty($cid)){echo ' / '.formatPhoneNumber($cid);} echo ': '.$dproute['description']; ?></h2>
@@ -80,14 +81,9 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 					document.getElementById("vizContainer").appendChild(element);
 				});
 				document.getElementById("download").addEventListener("click", function() {
-						html2canvas(document.querySelector('#vizContainer'), {
-								scale: 3,
-								useCORS: true,
-								allowTaint: true
-						}).then(function(canvas) {
-								let imgData = canvas.toDataURL("image/png");
-								saveAs(imgData, "<?php echo $iroute.'.png'; ?>");
-						});
+					html2canvas(document.querySelector('#vizContainer')).then(function(canvas) {
+					saveAs(canvas.toDataURL(), '<?php echo $iroute.'.png'; ?>');
+					});
 				});
 				
 				function saveAs(uri, filename) {
@@ -105,7 +101,6 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 						window.open(uri);
 					}
 				}
-				
 			</script>
 			<?php
 			if ($panzoom==1){ ?>
