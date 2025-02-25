@@ -248,7 +248,6 @@ function dp_follow_destinations (&$route, $destination) {
 	  if (!empty($ivr['announcement'])){
 			$ivrRecName=$route['recordings'][$ivr['announcement']]['displayname'];
 		}else{
-			echo 'not found';
 			$ivrRecName='None';
 		}
 		
