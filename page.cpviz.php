@@ -28,7 +28,8 @@ $datetime = isset($options[0]['datetime']) ? $options[0]['datetime'] : '1';
 $horizontal = isset($options[0]['horizontal']) ? $options[0]['horizontal'] : '0';
 $panzoom = isset($options[0]['panzoom']) ? $options[0]['panzoom'] : '0';
 $destinationColumn= isset($options[0]['destination']) ? $options[0]['destination'] : '0';
-
+$scale= isset($options[0]['scale']) ? $options[0]['scale'] : '1';
+$dynmembers= isset($options[0]['dynmembers']) ? $options[0]['dynmembers'] : '0';
 $direction=($horizontal== 1) ? 'LR' : 'TB';
 
 ?>
@@ -52,16 +53,16 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 			dp_load_tables($dproute);   # adds data for time conditions, IVRs, etc.
 			//echo "<pre>" . "FreePBX config data:\n" . print_r($dproute, true) . "</pre><br>";
 
+			
 			dplog(5, "Doing follow dest ...");
 			dp_follow_destinations($dproute, '');
 			dplog(5, "Finished follow dest ...");
 			
-			$gtext = $dproute['dpgraph']->attr('graph',array('rankdir'=>$direction));
 			$gtext = $dproute['dpgraph']->render();
 		
 			dplog(5, "Dial Plan Graph for $extdisplay $cid:\n$gtext");
 			
-			$gtext = str_replace(["\n", "+"], ["\\n", "\+"], $gtext);  // ugh, apparently viz chokes on newlines and +, wtf?
+			$gtext = str_replace(["\n","+"], ["\\n","\\+"], $gtext);  // ugh, apparently viz chokes on newlines, wtf?
 			
 			?>
 			<div class="fpbx-container">
@@ -81,7 +82,7 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 				});
 				document.getElementById("download").addEventListener("click", function() {
 						html2canvas(document.querySelector('#vizContainer'), {
-								scale: 3,
+								scale: <?php echo $scale; ?>,
 								useCORS: true,
 								allowTaint: true
 						}).then(function(canvas) {
@@ -111,8 +112,12 @@ $direction=($horizontal== 1) ? 'LR' : 'TB';
 			if ($panzoom==1){ ?>
 				<script src="modules/cpviz/assets/js/panzoom.min.js"></script>
 				<script type="text/javascript">
-					var element = document.querySelector('#graph0')
-					panzoom(element)
+						document.addEventListener("DOMContentLoaded", function() {
+								var element = document.querySelector('#graph0');
+								if (element) {
+										panzoom(element);
+								}
+						});
 				</script>
 			<?php }
 		}

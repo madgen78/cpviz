@@ -47,7 +47,7 @@ $("#cpviz-side").on('click-row.bs.table',function(e,row,elem){
 });
 
 function bootnavvizFormatter(value, row) {
-    var extension = row['extension'].trim() || "ANY";
+    var extension = decodeURIComponent(row['extension']).trim() || "ANY";
     var cidnum = decodeURIComponent(row['cidnum']).trim();
     
     // Return only the extension if cidnum is empty

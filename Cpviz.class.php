@@ -24,24 +24,28 @@ class Cpviz extends \FreePBX_Helpers implements \BMO {
     }
 
     public function getOptions() {
-        $sql = "SELECT panzoom, horizontal, datetime, destination FROM cpviz";
+        $sql = "SELECT panzoom, horizontal, datetime, destination, scale, dynmembers FROM cpviz";
         $sth = $this->db->prepare($sql);
         $sth->execute();
         return $sth->fetchAll(\PDO::FETCH_ASSOC);
     }
     
-    public function editCpviz($panzoom, $horizontal, $datetime, $destination) {
+    public function editCpviz($panzoom, $horizontal, $datetime, $destination, $scale, $dynmembers) {
         $sql = "UPDATE cpviz SET
             `panzoom` = :panzoom,
             `horizontal` = :horizontal,
 						`datetime` = :datetime,
-						`destination` = :destination
+						`destination` = :destination,
+						`scale` = :scale,
+						`dynmembers` = :dynmembers
             WHERE `id` = 1";
         $insert = [
             ':panzoom' => $panzoom,
             ':horizontal' => $horizontal,
 						':datetime' => $datetime,
-						':destination' => $destination
+						':destination' => $destination,
+						':scale' => $scale,
+						':dynmembers' => $dynmembers
         ];
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($insert);
@@ -54,10 +58,12 @@ class Cpviz extends \FreePBX_Helpers implements \BMO {
         $horizontal = isset($request['horizontal']) ? $request['horizontal'] : '';
 				$datetime = isset($request['datetime']) ? $request['datetime'] : '';
 				$destination = isset($request['destination']) ? $request['destination'] : '';
+				$scale = isset($request['scale']) ? $request['scale'] : '';
+				$dynmembers = isset($request['dynmembers']) ? $request['dynmembers'] : '';
 
         switch ($action) {
             case 'edit':
-                $this->editCpviz($panzoom, $horizontal, $datetime, $destination );
+                $this->editCpviz($panzoom, $horizontal, $datetime, $destination, $scale, $dynmembers);
                 break;
             default:
                 break;

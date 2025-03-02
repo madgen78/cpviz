@@ -69,12 +69,13 @@ function dp_follow_destinations (&$route, $destination) {
   global $db;
   global $pastels;
   global $neons;
+	global $direction;
 
   if (! isset ($route['dpgraph'])) {
     $route['dpgraph'] = new Alom\Graphviz\Digraph($route['extension']);
+		$route['dpgraph']->attr('graph',array('rankdir'=>$direction));
   }
   $dpgraph = $route['dpgraph'];
-  //dplog(9, "dpgraph: " . print_r($dpgraph, true));
   dplog(9, "destination='$destination' route[extension]: " . print_r($route['extension'], true));
 
   # This only happens on the first call.  Every recursive call includes
@@ -82,17 +83,18 @@ function dp_follow_destinations (&$route, $destination) {
   # the route object.
   if ($destination == '') {
 		if (empty($route['extension'])){$didLabel='ANY';}else{$didLabel=formatPhoneNumber($route['extension']);}
-		$didLink=$route['extension'].'%2F';
+		$didLink=$route['extension'].'/';
 		if (!empty($route['cidnum'])){
 			$didLabel.=' / '.formatPhoneNumber($route['cidnum']);
-			$didLink.=urlencode($route['cidnum']);
+			$didLink.=$route['cidnum'];
 		}
+
 			$dpgraph->node($route['extension'],
 				array(
-					'label' => $didLabel,
+					'label' => sanitizeLabel($didLabel),
 					'shape' => 'cds',
 					'style' => 'filled',
-					'URL'   => htmlentities('/admin/config.php?display=did&view=form&extdisplay='.$didLink),
+					'URL'   => htmlentities('/admin/config.php?display=did&view=form&extdisplay='.urlencode($didLink)),
 					'target'=>'_blank',
 					'fillcolor' => 'darkseagreen')
 				);
@@ -137,418 +139,94 @@ function dp_follow_destinations (&$route, $destination) {
   if ($dpgraph->hasEdge(array($route['parent_node'], $node))) {
     dplog(9, "NOT making an edge from $ptxt -> $ntxt");
 		$edge= $dpgraph->beginEdge(array($route['parent_node'], $node));
-		$edge->attribute('label', $route['parent_edge_label']);
+		$edge->attribute('label', sanitizeLabel($route['parent_edge_label']));
   } else {
     dplog(9, "Making an edge from $ptxt -> $ntxt");
     $edge= $dpgraph->beginEdge(array($route['parent_node'], $node));
-    $edge->attribute('label', $route['parent_edge_label']);
-	if (preg_match("/^(Match:)./", $route['parent_edge_label'])){
-		$edge->attribute('URL', $route['parent_edge_url']);
-		$edge->attribute('target', $route['parent_edge_target']);
-	}
+    $edge->attribute('label', sanitizeLabel($route['parent_edge_label']));
+		if (preg_match("/^(Match:)./", $route['parent_edge_label'])){
+			$edge->attribute('URL', $route['parent_edge_url']);
+			$edge->attribute('target', $route['parent_edge_target']);
+		}
   }
 
-  // dplog(9, "The Graph: " . print_r($dpgraph, true));
+  dplog(9, "The Graph: " . print_r($dpgraph, true));
 
   // Now bail if we have already recursed on this destination before.
   if ($node->getAttribute('label', 'NONE') != 'NONE') {
     return;
   }
 
-  # Now look at the destination and figure out where to dig deeper.
+	# Now look at the destination and figure out where to dig deeper.
 
-  #
-  # Time Conditions
-  #
-  if (preg_match("/^timeconditions,(\d+),(\d+)/", $destination, $matches)) {
-    $tcnum = $matches[1];
-    $tcother = $matches[2];
+		#
+		# Announcements
+		#
+  if (preg_match("/^app-announcement-(\d+),s,(\d+)/", $destination, $matches)) {
+		$annum = $matches[1];
+		$another = $matches[2];
 
-    $tc = $route['timeconditions'][$tcnum];
-    $node->attribute('label', "TC: ".htmlspecialchars($tc['displayname'],ENT_QUOTES));
-    $node->attribute('URL', htmlentities('/admin/config.php?display=timeconditions&view=form&itemid='.$tcnum));
-    $node->attribute('target', '_blank');
-    $node->attribute('shape', 'invhouse');
-    $node->attribute('fillcolor', 'dodgerblue');
-    $node->attribute('style', 'filled');
+		$an = $route['announcements'][$annum];
 
-  
-    # Not going to use the time group info for right now.  Maybe put it in the edge text?
-    $tgname = $route['timegroups'][$tc['time']]['description'];
-    $tgtime = $route['timegroups'][$tc['time']]['time'];
-    $tgnum = $route['timegroups'][$tc['time']]['id'];
-
-    # Now set the current node to be the parent and recurse on both the true and false branches
-    $route['parent_edge_label'] = 'Match: \\n'.htmlspecialchars($tgname,ENT_QUOTES).':\\n'.$tgtime;
-    $route['parent_edge_url'] = htmlentities('/admin/config.php?display=timegroups&view=form&extdisplay='.$tgnum);
-    $route['parent_edge_target'] = '_blank';
-
-    $route['parent_node'] = $node;
-    dp_follow_destinations($route, $tc['truegoto']);
-
-
-    $route['parent_edge_label'] = ' NoMatch';
-    $route['parent_edge_url'] ='';
-    $route['parent_edge_target'] = '';
-    $route['parent_node'] = $node;
-    dp_follow_destinations($route, $tc['falsegoto']);
-
-  //
-  // Queues
-  //
-  } elseif (preg_match("/^ext-queues,(\d+),(\d+)/", $destination, $matches)) {
-    $qnum = $matches[1];
-    $qother = $matches[2];
-
-    $q = $route['queues'][$qnum];
-    if ($q['maxwait'] == 0 || $q['maxwait'] == '' || !is_numeric($q['maxwait'])) {
-			$maxwait = 'Unlimited';
-    } else {
-  	$maxwait = secondsToTime($q['maxwait']);
-    }
-    $node->attribute('label', "Queue $qnum: ".htmlspecialchars($q['descr'],ENT_QUOTES));
-    $node->attribute('URL', htmlentities('/admin/config.php?display=queues&view=form&extdisplay='.$qnum));
-    $node->attribute('target', '_blank');
-    $node->attribute('shape', 'hexagon');
-    $node->attribute('fillcolor', 'mediumaquamarine');
-    $node->attribute('style', 'filled');
-
-    # The destinations we need to follow are the queue members (extensions)
-    # and the no-answer destination.
-    if ($q['dest'] != '') {
-      $route['parent_edge_label'] = ' No Answer ('.$maxwait.')';
-      $route['parent_node'] = $node;
-      dp_follow_destinations($route, $q['dest']);
-    }
-
-    if (!empty($q['members'])){ksort($q['members']);
-			foreach ($q['members'] as $member => $qstatus) {
-				dplog(9, "queue member $member / $qstatus ...");
-				if ($qstatus == 'static') {
-					$route['parent_edge_label'] = ' Static';
-				} else {
-					$route['parent_edge_label'] = ' Dynamic';
-				}
-				$route['parent_node'] = $node;
-				
-				dp_follow_destinations($route, 'qmember'.$member);
-				
-			}
-		}
-		
-  #
-  # IVRs
-  #
-  } elseif (preg_match("/^ivr-(\d+),([a-z]+),(\d+)/", $destination, $matches)) {
-    $inum = $matches[1];
-    $iflag = $matches[2];
-    $iother = $matches[3];
-
-    $ivr = $route['ivrs'][$inum];
-	  if (!empty($ivr['announcement'])){
-			$ivrRecName=$route['recordings'][$ivr['announcement']]['displayname'];
+		#feature code exist?
+		if ( isset($route['featurecodes']['*29'.$an['recording_id']]) ){
+			#custom feature code?
+			if ($route['featurecodes']['*29'.$an['recording_id']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['defaultcode'];}
+			#is it enabled?
+			if ( ($route['recordings'][$an['recording_id']]['fcode']== '1') && ($route['featurecodes']['*29'.$an['recording_id']]['enabled']=='1') ){$rec='\\nRecord(yes): '.$featurenum;}else{$rec='\\nRecord(no): '.$featurenum;}
 		}else{
-			$ivrRecName='None';
+			$rec='\\nRecord(no): disabled';
 		}
+
+		$node->attribute('label', 'Announcements: '.sanitizeLabel($an['description']).$rec);
+		$node->attribute('URL', htmlentities('/admin/config.php?display=announcement&view=form&extdisplay='.$annum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'note');
+		$node->attribute('fillcolor', 'oldlace');
+		$node->attribute('style', 'filled');
+
+		# The destinations we need to follow are the no-answer destination
+		# (postdest) and the members of the group.
+
+		if ($an['post_dest'] != '') {
+			$route['parent_edge_label'] = ' Continue';
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $an['post_dest']);
+		}
+		# end of announcements
+
+		#
+		# Blackhole
+		#
+  } elseif (preg_match("/^app-blackhole,(hangup|congestion|busy|zapateller|musiconhold|ring|no-service),(\d+)/", $destination, $matches)) {
+		$blackholetype = str_replace('musiconhold','Music On Hold',$matches[1]);
+		$blackholeother = $matches[2];
 		
-    //feature code exist?
-    if ( isset($route['featurecodes']['*29'.$ivr['announcement']]) ){
-      //custom feature code?
-      if ($route['featurecodes']['*29'.$ivr['announcement']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['defaultcode'];}
-      //is it enabled?
-      if ( ($route['recordings'][$ivr['announcement']]['fcode']== '1') && ($route['featurecodes']['*29'.$ivr['announcement']]['enabled']=='1') ){$rec='(yes): '.$featurenum;}else{$rec='(no): '.$featurenum;}
-    }else{
-      $rec='(no): disabled';
-    }
+		$node->attribute('label', 'Terminate Call: '.ucwords($blackholetype,'-'));
+		$node->attribute('shape', 'invhouse');
+		$node->attribute('fillcolor', 'orangered');
+		$node->attribute('style', 'filled');
+		#end of Blackhole
 
-    $node->attribute('label', "IVR: ".htmlspecialchars($ivr['name'], ENT_QUOTES)."\\nAnnouncement: ".htmlspecialchars($ivrRecName, ENT_QUOTES)."\\lRecord ".$rec."\\l");
-    $node->attribute('URL', htmlentities('/admin/config.php?display=ivr&action=edit&id='.$inum));
-    $node->attribute('target', '_blank');
-    $node->attribute('shape', 'component');
-    $node->attribute('fillcolor', 'gold');
-    $node->attribute('style', 'filled');
-
-    # The destinations we need to follow are the invalid_destination,
-    # timeout_destination, and the selection targets
-
-
-  //are the invalid and timeout destinations the same?
-  if ($ivr['invalid_destination']==$ivr['timeout_destination']){
-     $route['parent_edge_label']= " Invalid Input, Timeout ($ivr[timeout_time] secs)";
-     $route['parent_node'] = $node;
-     dp_follow_destinations($route, $ivr['invalid_destination']);
-  }else{
-      if ($ivr['invalid_destination'] != '') {
-        $route['parent_edge_label']= ' Invalid Input';
-        $route['parent_node'] = $node;
-        dp_follow_destinations($route, $ivr['invalid_destination']);
-      }
-      if ($ivr['timeout_destination'] != '') {
-        $route['parent_edge_label']= " Timeout ($ivr[timeout_time] secs)";
-        $route['parent_node'] = $node;
-        dp_follow_destinations($route, $ivr['timeout_destination']);
-      }
-  }
-  //now go through the selections
-    if (!empty($ivr['entries'])){
-      ksort($ivr['entries']);
-      foreach ($ivr['entries'] as $selid => $ent) {
-        
-				$route['parent_edge_label']= " Selection $ent[selection]";
-        $route['parent_node'] = $node;
-        dp_follow_destinations($route, $ent['dest']);
-      }
-    }
-
-  #
-  # Ring Groups
-  #
-  } elseif (preg_match("/^ext-group,(\d+),(\d+)/", $destination, $matches)) {
-    $rgnum = $matches[1];
-    $rgother = $matches[2];
-
-    $rg = $route['ringgroups'][$rgnum];
-    $node->attribute('label', "Ring Group: $rgnum: " .htmlspecialchars($rg['description'], ENT_QUOTES));
-    $node->attribute('URL', htmlentities('/admin/config.php?display=ringgroups&view=form&extdisplay='.$rgnum));
-    $node->attribute('target', '_blank');
-    $node->attribute('fillcolor', $pastels[4]);
-    $node->attribute('style', 'filled');
-
-    # The destinations we need to follow are the no-answer destination
-    # (postdest) and the members of the group.
-    if ($rg['postdest'] != '') {
-      $route['parent_edge_label'] = ' No Answer ('.secondsToTime($rg['grptime']).')';
-      $route['parent_node'] = $node;
-      dp_follow_destinations($route, $rg['postdest']);
-    }
-
-    if (isset($rg['members'])){
-    ksort($rg['members']);
-    foreach ($rg['members'] as $member => $name) {
-      $route['parent_edge_label'] = ' RG Member';
-      $route['parent_node'] = $node;
-      if (preg_match("/^\d+/", $member)) {
-				//$extname= 
-				
-        dp_follow_destinations($route, "Ext$member\\n$name");
-      } elseif (preg_match("/#$/", $member)) {
-        preg_replace("/[^0-9]/", '', $member);   // remove non-digits
-        if (preg_match("/^(\d\d\d)(\d\d\d\d)$/", $member, $matches)) {
-          $member = "$matches[1]-$matches[2]";
-        } elseif (preg_match("/^(\d\d\d)(\d\d\d)(\d\d\d\d)$/", $member, $matches))  {
-          $member = "$matches[1]-$matches[2]-$matches[3]";
-        }
-        dp_follow_destinations($route, "Callout $member");
-      } else {
-        dp_follow_destinations($route, "$member");
-      }
-    }  # end of ring groups
-    }
-  #
-  # Announcements
-  #
-  } elseif (preg_match("/^app-announcement-(\d+),s,(\d+)/", $destination, $matches)) {
-  $annum = $matches[1];
-  $another = $matches[2];
-
-  $an = $route['announcements'][$annum];
-
-  //feature code exist?
-  if ( isset($route['featurecodes']['*29'.$an['recording_id']]) ){
-    //custom feature code?
-    if ($route['featurecodes']['*29'.$an['recording_id']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['defaultcode'];}
-    //is it enabled?
-    if ( ($route['recordings'][$an['recording_id']]['fcode']== '1') && ($route['featurecodes']['*29'.$an['recording_id']]['enabled']=='1') ){$rec='\\nRecord(yes): '.$featurenum;}else{$rec='\\nRecord(no): '.$featurenum;}
-  }else{
-    $rec='\\nRecord(no): disabled';
-  }
-
-  $node->attribute('label', "Announcement: " .htmlspecialchars($an['description'], ENT_QUOTES).$rec);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=announcement&view=form&extdisplay='.$annum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'note');
-  $node->attribute('fillcolor', 'oldlace');
-  $node->attribute('style', 'filled');
-
-  # The destinations we need to follow are the no-answer destination
-  # (postdest) and the members of the group.
-
-  if ($an['post_dest'] != '') {
-    $route['parent_edge_label'] = ' Continue';
-    $route['parent_node'] = $node;
-    dp_follow_destinations($route, $an['post_dest']);
-  }
-
-  # end of announcements
-
-  #
-  # Set CID
-  #
-  } elseif (preg_match("/^app-setcid,(\d+),(\d+)/", $destination, $matches)) {
-  $cidnum = $matches[1];
-  $cidother = $matches[2];
-
-  $cid = $route['setcid'][$cidnum];
-  $node->attribute('label', 'Set CID\nName= '.preg_replace('/\${CALLERID\(name\)}/i', '$cid_name', $cid['cid_name']).'\nNumber= '.preg_replace('/\${CALLERID\(num\)}/i', '$cid_number', $cid['cid_num']));
-  $node->attribute('URL', htmlentities('/admin/config.php?display=setcid&view=form&id='.$cidnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'note');
-  $node->attribute('fillcolor', $pastels[6]);
-  $node->attribute('style', 'filled');
-
-  if ($cid['dest'] != '') {
-    $route['parent_edge_label'] = ' Continue';
-    $route['parent_node'] = $node;
-    dp_follow_destinations($route, $cid['dest']);
-  }
-
-  #end of Set CID
-  
-  #
-  # Languages
-  #
-  } elseif (preg_match("/^app-languages,(\d+),(\d+)/", $destination, $matches)) {
-  $langnum = $matches[1];
-  $langother = $matches[2];
-
-  $lang = $route['languages'][$langnum];
-  $node->attribute('label', 'Languages: '.$lang['description']);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=languages&view=form&extdisplay='.$langnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'note');
-  $node->attribute('fillcolor', $pastels[6]);
-  $node->attribute('style', 'filled');
-
-  if ($lang['dest'] != '') {
-    $route['parent_edge_label'] = ' Continue';
-    $route['parent_node'] = $node;
-    dp_follow_destinations($route, $lang['dest']);
-  }
-
-  #end of Languages
-
-  #
-  # MISC Destinations
-  #
-  } elseif (preg_match("/^ext-miscdests,(\d+),(\d+)/", $destination, $matches)) {
-  $miscdestnum = $matches[1];
-  $miscdestother = $matches[2];
-
-  $miscdest = $route['miscdest'][$miscdestnum];
-  $node->attribute('label', "Misc Dest: " .htmlspecialchars($miscdest['description'],ENT_QUOTES)." ($miscdest[destdial])");
-  $node->attribute('URL', htmlentities('/admin/config.php?display=miscdests&view=form&extdisplay='.$miscdestnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'rpromoter');
-  $node->attribute('fillcolor', 'coral');
-  $node->attribute('style', 'filled');
-
-  #end of MISC Destinations
-
-  #
-  # Conferences (meetme)
-  #
-  } elseif (preg_match("/^ext-meetme,(\d+),(\d+)/", $destination, $matches)) {
-  $meetmenum = $matches[1];
-  $meetmeother = $matches[2];
-  $meetme = $route['meetme'][$meetmenum];
-
-  $node->attribute('label', 'Conference: '.$meetme['exten']);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=conferences&view=form&extdisplay='.$meetmenum));
-  $node->attribute('target', '_blank');
-  $node->attribute('fillcolor', 'burlywood');
-  $node->attribute('style', 'filled');
-
-  #end of Conferences (meetme)
-
-  #
-  # Directory
-  #
-  } elseif (preg_match("/^directory,(\d+),(\d+)/", $destination, $matches)) {
-  $directorynum = $matches[1];
-  $directoryother = $matches[2];
-  $directory = $route['directory'][$directorynum];
-
-  $node->attribute('label', htmlspecialchars($directory['dirname'],ENT_QUOTES));
-  $node->attribute('URL', htmlentities('/admin/config.php?display=directory&view=form&id='.$directorynum));
-  $node->attribute('target', '_blank');
-  $node->attribute('fillcolor', $pastels[9]);
-  $node->attribute('style', 'filled');
-
-  #end of Directory
-
-  #
-  # DISA
-  #
-  } elseif (preg_match("/^disa,(\d+),(\d+)/", $destination, $matches)) {
-  $disanum = $matches[1];
-  $disaother = $matches[2];
-  $disa = $route['disa'][$disanum];
-
-  $node->attribute('label', 'DISA: '.htmlspecialchars($disa['displayname'],ENT_QUOTES));
-  $node->attribute('URL', htmlentities('/admin/config.php?display=disa&view=form&itemid='.$disanum));
-  $node->attribute('target', '_blank');
-  $node->attribute('fillcolor', $pastels[10]);
-  $node->attribute('style', 'filled');
-
-  #end of DISA
-
-  #
-  # Voicemail
-  #
-  } elseif (preg_match("/^ext-local,vm([b,i,s,u])(\d+),(\d+)/", $destination, $matches)) {
-  $vmtype= $matches[1];
-  $vmnum = $matches[2];
-  $vmother = $matches[3];
-  
-  $vm_array=array('b'=>'(Busy Message)','i'=>'(Instructions Only)','s'=>'(No Message)','u'=>'(Unavailable Message)' );
-  $emailadd= $route['extensions'][$vmnum]['name'].'\\n'.$route['extensions'][$vmnum]['email'];
- 
-  $node->attribute('label', 'Voicemail: '.$vmnum.': '.$emailadd.'\\n'.$vm_array[$vmtype]);
-  $node->attribute('label', 'Voicemail: '.$vmnum.' '.$vm_array[$vmtype]);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$vmnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'house');
-  $node->attribute('fillcolor', $pastels[11]);
-  $node->attribute('style', 'filled');
-
-  #end of Voicemail
-
-  #
-  # Extension (from-did-direct)
-  #
-  } elseif (preg_match("/^from-did-direct,(\d+),(\d+)/", $destination, $matches)) {
-  $extnum = $matches[1];
-	$extother = $matches[2];
-  //$ext = $route['vm'][$vmnum];
-  
-  $node->attribute('label', 'Extension: '.$extnum);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$extnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'house');
-  $node->attribute('fillcolor', $pastels[15]);
-  $node->attribute('style', 'filled');
-
-  #end of Extension (from-did-direct)
-
-  #
-  # Call Flow Control (daynight)
-  #
+		#
+		# Call Flow Control (daynight)
+		#
   } elseif (preg_match("/^app-daynight,(\d+),(\d+)/", $destination, $matches)) {
     $daynightnum = $matches[1];
     $daynightother = $matches[2];
     $daynight = $route['daynight'][$daynightnum];
     
-    //feature code exist?
+    #feature code exist?
     if ( isset($route['featurecodes']['*28'.$daynightnum]) ){
-      //custom feature code?
+      #custom feature code?
       if ($route['featurecodes']['*28'.$daynightnum]['customcode']!=''){$featurenum=$route['featurecodes']['*28'.$daynightnum]['customcode'];}else{$featurenum=$route['featurecodes']['*28'.$daynightnum]['defaultcode'];}
-      //is it enabled?
+      #is it enabled?
       if ($route['featurecodes']['*28'.$daynightnum]['enabled']=='1'){$code='\\nToggle (enabled): '.$featurenum;}else{$code='\\nToggle (disabled): '.$featurenum;}
     }else{
       $code='';
     }
 	  
-    //check current status and set path to active
+    #check current status and set path to active
     $C = '/usr/sbin/asterisk -rx "database show DAYNIGHT/C'.$daynightnum.'" | cut -d \':\' -f2 | tr -d \' \' | head -1';
     exec($C, $current_daynight);
     $dactive = $nactive = "";
@@ -564,7 +242,7 @@ function dp_follow_destinations (&$route, $destination) {
           $route['parent_node'] = $node;
           dp_follow_destinations($route, $d['dest']);
       }elseif ($d['dmode']=="fc_description"){
-           $node->attribute('label', "Call Flow: ".htmlspecialchars($d['dest'],ENT_QUOTES) .$code);
+           $node->attribute('label', "Call Flow: ".sanitizeLabel($d['dest']) .$code);
       }
     }
     $daynight = $route['daynight'][$daynightnum];
@@ -572,111 +250,291 @@ function dp_follow_destinations (&$route, $destination) {
     $node->attribute('target', '_blank');
     $node->attribute('fillcolor', $pastels[14]);
     $node->attribute('style', 'filled');
+		#end of Call Flow Control (daynight)
 
-  #end of Call Flow Control (daynight)
-  
-  #
-  # Feature Codes
-  #
-  } elseif (preg_match("/^ext-featurecodes,(\*?\d+),(\d+)/", $destination, $matches)) {
-  $featurenum = $matches[1];
-  $featureother = $matches[2];
-  $feature = $route['featurecodes'][$featurenum];
-  
-  if ($feature['customcode']!=''){$featurenum=$feature['customcode'];}
-  $node->attribute('label', 'Feature Code: '.htmlspecialchars($feature['description'],ENT_QUOTES).' <'.$featurenum.'>');
-  $node->attribute('URL', htmlentities('/admin/config.php?display=featurecodeadmin'));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'folder');
-  $node->attribute('fillcolor', 'gainsboro');
-  $node->attribute('style', 'filled');
+		#
+		# Conferences (meetme)
+		#
+  } elseif (preg_match("/^ext-meetme,(\d+),(\d+)/", $destination, $matches)) {
+		$meetmenum = $matches[1];
+		$meetmeother = $matches[2];
+		$meetme = $route['meetme'][$meetmenum];
 
-  #end of Feature Codes
-  
-  #
-  # Blackhole
-  #
-  } elseif (preg_match("/^app-blackhole,(hangup|congestion|busy|zapateller|musiconhold|ring|no-service),(\d+)/", $destination, $matches)) {
-  $blackholetype = str_replace('musiconhold','Music On Hold',$matches[1]);
-  $blackholeother = $matches[2];
-  
-  $node->attribute('label', 'Terminate Call: '.ucwords($blackholetype,'-'));
-  $node->attribute('shape', 'invhouse');
-  $node->attribute('fillcolor', 'orangered');
-  $node->attribute('style', 'filled');
-
-  #end of Blackhole
-	
-	#
-  # Play Recording
-  #
-  } elseif (preg_match("/^play-system-recording,(\d+),(\d+)/", $destination, $matches)) {
-  $recID = $matches[1];
-  $recIDOther = $matches[2];
-  $playName=$route['recordings'][$recID]['displayname'];
-  $node->attribute('label', 'Play Recording: '.$playName);
-	$node->attribute('URL', htmlentities('/admin/config.php?display=recordings&action=edit&id='.$recID));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'rect');
-  $node->attribute('fillcolor', $pastels['16']);
-  $node->attribute('style', 'filled');
-
-  #end of Blackhole
-
-  #
-  # Extension (dynroute)
-  #
-  } elseif (preg_match("/^dynroute-(\d+)/", $destination, $matches)) {
-
-	$dynnum = $matches[1];
-	$dynrt = $route['dynroute'][$dynnum];
-  $announcement = isset($route['recordings'][$dynrt['announcement_id']]['displayname']) ? $route['recordings'][$dynrt['announcement_id']]['displayname'] : null;
-  $node->attribute('label', 'DYN: '.$dynrt['name'].'\nAnnoucement: '.$announcement);
-  $node->attribute('URL', htmlentities('/admin/config.php?display=dynroute&action=edit&id='.$dynnum));
-  $node->attribute('target', '_blank');
-  $node->attribute('shape', 'component');
-  $node->attribute('fillcolor', $pastels[12]);
-  $node->attribute('style', 'filled');
-
-	//are the invalid and timeout destinations the same?
-  if ($dynrt['invalid_dest']==$dynrt['default_dest']){
-     $route['parent_edge_label']= " Invalid Input, Default ($dynrt[timeout] secs)";
-     $route['parent_node'] = $node;
-     dp_follow_destinations($route, $dynrt['invalid_dest']);
-  }else{
-		if ($dynrt['invalid_dest'] != '') {
-			$route['parent_edge_label']= ' Invalid Input';
-			$route['parent_node'] = $node;
-			dp_follow_destinations($route, $dynrt['invalid_dest']);
-		}
-		if ($dynrt['default_dest'] != '') {
-			$route['parent_edge_label']= " Default ($dynrt[timeout] secs)";
-			$route['parent_node'] = $node;
-			dp_follow_destinations($route, $dynrt['default_dest']);
-		}
-  }
-
-	if (!empty($dynrt['routes'])){
-		ksort($dynrt['routes']);
-		foreach ($dynrt['routes'] as $selid => $ent) {
-			
-			$route['parent_edge_label']= "  Match: $ent[selection]\n$ent[description]";
-			$route['parent_node'] = $node;
-			dp_follow_destinations($route, $ent['dest']);
-		}
-	}
-  #end of Extension (dynroute)
-	
-	#
-  # Queue members (static and dynamic)
-  #
-	}elseif (preg_match("/^qmember(Ext(\d+).+)/", $destination, $matches)) {
-		$qlabel=$matches[1];
-		$qextension=$matches[2];
-	  if (isset($u[$qextension]) && $u[$qextension]['name']!=''){echo $u[$qextension]['name'];}
-		$node->attribute('label', $qlabel);
-		$node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$qextension));
+		$node->attribute('label', 'Conferences: '.$meetme['exten'].' '.sanitizeLabel($meetme['description']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=conferences&view=form&extdisplay='.$meetmenum));
 		$node->attribute('target', '_blank');
+		$node->attribute('fillcolor', 'burlywood');
+		$node->attribute('style', 'filled');
+		#end of Conferences (meetme)
+
+		#
+		# Directory
+		#
+  } elseif (preg_match("/^directory,(\d+),(\d+)/", $destination, $matches)) {
+		$directorynum = $matches[1];
+		$directoryother = $matches[2];
+		$directory = $route['directory'][$directorynum];
+
+		$node->attribute('label', 'Directory: '.sanitizeLabel($directory['dirname']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=directory&view=form&id='.$directorynum));
+		$node->attribute('target', '_blank');
+		$node->attribute('fillcolor', $pastels[9]);
+		$node->attribute('style', 'filled');
+		#end of Directory
+
+		#
+		# DISA
+		#
+  } elseif (preg_match("/^disa,(\d+),(\d+)/", $destination, $matches)) {
+		$disanum = $matches[1];
+		$disaother = $matches[2];
+		$disa = $route['disa'][$disanum];
+
+		$node->attribute('label', 'DISA: '.sanitizeLabel($disa['displayname']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=disa&view=form&itemid='.$disanum));
+		$node->attribute('target', '_blank');
+		$node->attribute('fillcolor', $pastels[10]);
+		$node->attribute('style', 'filled');
+		#end of DISA
+
+		#
+		# Dynamic Routes
+		#
+  } elseif (preg_match("/^dynroute-(\d+)/", $destination, $matches)) {
+		$dynnum = $matches[1];
+		$dynrt = $route['dynroute'][$dynnum];
+		$announcement = isset($route['recordings'][$dynrt['announcement_id']]['displayname']) ? $route['recordings'][$dynrt['announcement_id']]['displayname'] : null;
+		$node->attribute('label', 'DYN: '.sanitizeLabel($dynrt['name']).'\\nAnnouncement: '.sanitizeLabel($announcement));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=dynroute&action=edit&id='.$dynnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'component');
+		$node->attribute('fillcolor', $pastels[12]);
+		$node->attribute('style', 'filled');
+
+		//are the invalid and timeout destinations the same?
+		if ($dynrt['invalid_dest']==$dynrt['default_dest']){
+			 $route['parent_edge_label']= ' Invalid Input, Default ('.$dynrt['timeout'].' secs)';
+			 $route['parent_node'] = $node;
+			 dp_follow_destinations($route, $dynrt['invalid_dest']);
+		}else{
+			if ($dynrt['invalid_dest'] != '') {
+				$route['parent_edge_label']= ' Invalid Input';
+				$route['parent_node'] = $node;
+				dp_follow_destinations($route, $dynrt['invalid_dest']);
+			}
+			if ($dynrt['default_dest'] != '') {
+				$route['parent_edge_label']= ' Default ('.$dynrt['timeout'].' secs)';
+				$route['parent_node'] = $node;
+				dp_follow_destinations($route, $dynrt['default_dest']);
+			}
+		}
+
+		if (!empty($dynrt['routes'])){
+			ksort($dynrt['routes']);
+			foreach ($dynrt['routes'] as $selid => $ent) {
+				
+				$route['parent_edge_label']= '  Match: '.sanitizeLabel($ent['selection']).'\\n'.sanitizeLabel($ent['description']);
+				$route['parent_node'] = $node;
+				dp_follow_destinations($route, $ent['dest']);
+			}
+		}
+		#end of Dynamic Routes
+
+		#
+		# Extension (from-did-direct)
+		#
+  } elseif (preg_match("/^from-did-direct,(\d+),(\d+)/", $destination, $matches)) {
+		$extnum = $matches[1];
+		$extother = $matches[2];
+		$extname= $route['extensions'][$extnum]['name'];
+		$extemail= $route['extensions'][$extnum]['email'];
+		$extemail= str_replace("|",",\\n",$extemail);
+		
+		$node->attribute('label', 'Extension: '.$extnum.' '.sanitizeLabel($extname).'\\n'.sanitizeLabel($extemail));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$extnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'house');
+		$node->attribute('fillcolor', $pastels[15]);
+		$node->attribute('style', 'filled');
+		#end of Extension (from-did-direct)
+
+		#
+		# Feature Codes
+		#
+  } elseif (preg_match("/^ext-featurecodes,(\*?\d+),(\d+)/", $destination, $matches)) {
+		$featurenum = $matches[1];
+		$featureother = $matches[2];
+		$feature = $route['featurecodes'][$featurenum];
+		
+		if ($feature['customcode']!=''){$featurenum=$feature['customcode'];}
+		$node->attribute('label', 'Feature Code: '.sanitizeLabel($feature['description']).' \\<'.$featurenum.'\\>');
+		$node->attribute('URL', htmlentities('/admin/config.php?display=featurecodeadmin'));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'folder');
+		$node->attribute('fillcolor', 'gainsboro');
+		$node->attribute('style', 'filled');
+		#end of Feature Codes
+
+		#
+		# IVRs
+		#
+  } elseif (preg_match("/^ivr-(\d+),([a-z]+),(\d+)/", $destination, $matches)) {
+    $inum = $matches[1];
+    $iflag = $matches[2];
+    $iother = $matches[3];
+
+    $ivr = $route['ivrs'][$inum];
+	  $ivrRecName = !empty($ivr['announcement']) ? $route['recordings'][$ivr['announcement']]['displayname'] : 'None';
+		
+    #feature code exist?
+    if ( isset($route['featurecodes']['*29'.$ivr['announcement']]) ){
+      #custom feature code?
+      if ($route['featurecodes']['*29'.$ivr['announcement']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['defaultcode'];}
+      #is it enabled?
+      if ( ($route['recordings'][$ivr['announcement']]['fcode']== '1') && ($route['featurecodes']['*29'.$ivr['announcement']]['enabled']=='1') ){$rec='(yes): '.$featurenum;}else{$rec='(no): '.$featurenum;}
+    }else{
+      $rec='(no): disabled';
+    }
+
+    $node->attribute('label', "IVR: ".sanitizeLabel($ivr['name'])."\\nAnnouncement: ".sanitizeLabel($ivrRecName)."\\lRecord ".$rec."\\l");
+    $node->attribute('URL', htmlentities('/admin/config.php?display=ivr&action=edit&id='.$inum));
+    $node->attribute('target', '_blank');
+    $node->attribute('shape', 'component');
+    $node->attribute('fillcolor', 'gold');
+    $node->attribute('style', 'filled');
+
+    # The destinations we need to follow are the invalid_destination,
+    # timeout_destination, and the selection targets
+
+
+		#are the invalid and timeout destinations the same?
+		if ($ivr['invalid_destination']==$ivr['timeout_destination']){
+			 $route['parent_edge_label']= " Invalid Input, Timeout ($ivr[timeout_time] secs)";
+			 $route['parent_node'] = $node;
+			 dp_follow_destinations($route, $ivr['invalid_destination']);
+		}else{
+				if ($ivr['invalid_destination'] != '') {
+					$route['parent_edge_label']= ' Invalid Input';
+					$route['parent_node'] = $node;
+					dp_follow_destinations($route, $ivr['invalid_destination']);
+				}
+				if ($ivr['timeout_destination'] != '') {
+					$route['parent_edge_label']= ' Timeout ('.$ivr['timeout_time'].' secs)';
+					$route['parent_node'] = $node;
+					dp_follow_destinations($route, $ivr['timeout_destination']);
+				}
+		}
+		
+		#now go through the selections
+		if (!empty($ivr['entries'])){
+			ksort($ivr['entries']);
+			foreach ($ivr['entries'] as $selid => $ent) {
+				
+				$route['parent_edge_label']= ' Selection '.sanitizeLabel($ent['selection']);
+				$route['parent_node'] = $node;
+				dp_follow_destinations($route, $ent['dest']);
+			}
+		}
+		# end of IVRs
+
+		#
+		# Languages
+		#
+  } elseif (preg_match("/^app-languages,(\d+),(\d+)/", $destination, $matches)) {
+		$langnum = $matches[1];
+		$langother = $matches[2];
+
+		$lang = $route['languages'][$langnum];
+		$node->attribute('label', 'Languages: '.sanitizeLabel($lang['description']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=languages&view=form&extdisplay='.$langnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'note');
+		$node->attribute('fillcolor', $pastels[6]);
+		$node->attribute('style', 'filled');
+
+		if ($lang['dest'] != '') {
+			$route['parent_edge_label'] = ' Continue';
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $lang['dest']);
+		}
+		#end of Languages
+
+		#
+		# MISC Destinations
+		#
+  } elseif (preg_match("/^ext-miscdests,(\d+),(\d+)/", $destination, $matches)) {
+		$miscdestnum = $matches[1];
+		$miscdestother = $matches[2];
+
+		$miscdest = $route['miscdest'][$miscdestnum];
+		$node->attribute('label', 'Misc Dest: '.sanitizeLabel($miscdest['description']).' ('.$miscdest['destdial'].')');
+		$node->attribute('URL', htmlentities('/admin/config.php?display=miscdests&view=form&extdisplay='.$miscdestnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'rpromoter');
+		$node->attribute('fillcolor', 'coral');
+		$node->attribute('style', 'filled');
+		#end of MISC Destinations
+
+		#
+		# Play Recording
+		#
+  } elseif (preg_match("/^play-system-recording,(\d+),(\d+)/", $destination, $matches)) {
+		$recID = $matches[1];
+		$recIDOther = $matches[2];
+		$playName=$route['recordings'][$recID]['displayname'];
+		$node->attribute('label', 'Play Recording: '.sanitizeLabel($playName));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=recordings&action=edit&id='.$recID));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'rect');
+		$node->attribute('fillcolor', $pastels['16']);
+		$node->attribute('style', 'filled');
+		#end of Play Recording
+
+		#
+		# Queues
+		#
+  } elseif (preg_match("/^ext-queues,(\d+),(\d+)/", $destination, $matches)) {
+    $qnum = $matches[1];
+    $qother = $matches[2];
+
+    $q = $route['queues'][$qnum];
+    if ($q['maxwait'] == 0 || $q['maxwait'] == '' || !is_numeric($q['maxwait'])) {
+			$maxwait = 'Unlimited';
+    } else {
+  	$maxwait = secondsToTime($q['maxwait']);
+    }
+    $node->attribute('label', 'Queue '.$qnum.': '.sanitizeLabel($q['descr']));
+    $node->attribute('URL', htmlentities('/admin/config.php?display=queues&view=form&extdisplay='.$qnum));
+    $node->attribute('target', '_blank');
+    $node->attribute('shape', 'hexagon');
+    $node->attribute('fillcolor', 'mediumaquamarine');
+    $node->attribute('style', 'filled');
+
+    # The destinations we need to follow are the queue members (extensions)
+    # and the no-answer destination.
+    if ($q['dest'] != '') {
+      $route['parent_edge_label'] = ' No Answer ('.$maxwait.')';
+      $route['parent_node'] = $node;
+      dp_follow_destinations($route, $q['dest']);
+    }
+
+		foreach ($q['members'] as $types=>$type) {
+			foreach ($type as $members){
+				$route['parent_node'] = $node;
+				$route['parent_edge_label'] = ($types == 'static') ? ' Static' : ' Dynamic';
+				dp_follow_destinations($route, 'qmember'.$members);
+			}
+		}
+		#end of Queues
+		
+		#
+		# Queue members (static and dynamic)
+		#
+	} elseif (preg_match("/^qmember(\d+)/", $destination, $matches)) {
+		$qextension=$matches[1];
+		$qlabel = isset($route['extensions'][$qextension]['name']) ? $route['extensions'][$qextension]['name'] : '';
+		$node->attribute('label', 'Ext '.$qextension.'\\n'.sanitizeLabel($qlabel));
+		
 		if ($route['parent_edge_label'] == ' Static') {
 			$node->attribute('fillcolor', $pastels[20]);
 		}else{
@@ -684,14 +542,174 @@ function dp_follow_destinations (&$route, $destination) {
 		}
 		$node->attribute('style', 'filled');
 		
-	#END of preg_match
+		#end of Queue members (static and dynamic)
+
+		#
+		# Ring Groups
+		#
+  } elseif (preg_match("/^ext-group,(\d+),(\d+)/", $destination, $matches)) {
+    $rgnum = $matches[1];
+    $rgother = $matches[2];
+
+    $rg = $route['ringgroups'][$rgnum];
+    $node->attribute('label', 'Ring Groups: '.$rgnum.' '.sanitizeLabel($rg['description']));
+    $node->attribute('URL', htmlentities('/admin/config.php?display=ringgroups&view=form&extdisplay='.$rgnum));
+    $node->attribute('target', '_blank');
+    $node->attribute('fillcolor', $pastels[12]);
+    $node->attribute('style', 'filled');
+
+    # The destinations we need to follow are the no-answer destination
+    # (postdest) and the members of the group.
+    if ($rg['postdest'] != '') {
+      $route['parent_edge_label'] = ' No Answer ('.secondsToTime($rg['grptime']).')';
+      $route['parent_node'] = $node;
+      dp_follow_destinations($route, $rg['postdest']);
+    }
+		
+		$grplist = preg_split("/-/", $rg['grplist']);
+    
+    foreach ($grplist as $member) {
+      $route['parent_node'] = $node;
+			$route['parent_edge_label'] = '';
+      dp_follow_destinations($route, "rg$member");
+    } 
+    # End of Ring Groups
+  
+		#
+		# Ring Group Members
+		#
+  } elseif (preg_match("/^rg(\d+)/", $destination, $matches)) {
+		$rgext = $matches[1];
+		$rglabel = isset($route['extensions'][$rgext]) ? 'Ext '.$rgext.'\\n'.$route['extensions'][$rgext]['name'] : $rgext;
+
+		$node->attribute('label', sanitizeLabel($rglabel));
+		$node->attribute('fillcolor', $pastels[2]);
+		$node->attribute('style', 'filled');
+		# end of ring group members
+
+		#
+		# Set CID
+		#
+  } elseif (preg_match("/^app-setcid,(\d+),(\d+)/", $destination, $matches)) {
+		$cidnum = $matches[1];
+		$cidother = $matches[2];
+
+		$cid = $route['setcid'][$cidnum];
+		$node->attribute('label', 'Set CID\\nName= '.preg_replace('/\${CALLERID\(name\)}/i', '$cid_name', $cid['cid_name']).'\\nNumber= '.preg_replace('/\${CALLERID\(num\)}/i', '$cid_number', $cid['cid_num']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=setcid&view=form&id='.$cidnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'note');
+		$node->attribute('fillcolor', $pastels[6]);
+		$node->attribute('style', 'filled');
+
+		if ($cid['dest'] != '') {
+			$route['parent_edge_label'] = ' Continue';
+			$route['parent_node'] = $node;
+			dp_follow_destinations($route, $cid['dest']);
+		}
+		#end of Set CID
+		
+		#
+		# Time Conditions
+		#
+  } elseif (preg_match("/^timeconditions,(\d+),(\d+)/", $destination, $matches)) {
+    $tcnum = $matches[1];
+    $tcother = $matches[2];
+
+    $tc = $route['timeconditions'][$tcnum];
+    $node->attribute('label', "TC: ".sanitizeLabel($tc['displayname']));
+    $node->attribute('URL', htmlentities('/admin/config.php?display=timeconditions&view=form&itemid='.$tcnum));
+    $node->attribute('target', '_blank');
+    $node->attribute('shape', 'invhouse');
+    $node->attribute('fillcolor', 'dodgerblue');
+    $node->attribute('style', 'filled');
+
+  
+    # Not going to use the time group info for right now.  Maybe put it in the edge text?
+    $tgname = $route['timegroups'][$tc['time']]['description'];
+    $tgtime = $route['timegroups'][$tc['time']]['time'];
+    $tgnum = $route['timegroups'][$tc['time']]['id'];
+
+    # Now set the current node to be the parent and recurse on both the true and false branches
+    $route['parent_edge_label'] = 'Match:\\n'.sanitizeLabel($tgname).'\\n'.$tgtime;
+    $route['parent_edge_url'] = htmlentities('/admin/config.php?display=timegroups&view=form&extdisplay='.$tgnum);
+    $route['parent_edge_target'] = '_blank';
+
+    $route['parent_node'] = $node;
+    dp_follow_destinations($route, $tc['truegoto']);
+
+
+    $route['parent_edge_label'] = ' NoMatch';
+    $route['parent_edge_url'] ='';
+    $route['parent_edge_target'] = '';
+    $route['parent_node'] = $node;
+    dp_follow_destinations($route, $tc['falsegoto']);		
+		#end of Time Conditions
+ 
+		#
+		# Voicemail
+		#
+  } elseif (preg_match("/^ext-local,vm([b,i,s,u])(\d+),(\d+)/", $destination, $matches)) {
+		$vmtype= $matches[1];
+		$vmnum = $matches[2];
+		$vmother = $matches[3];
+		
+		$vm_array=array('b'=>'(Busy Message)','i'=>'(Instructions Only)','s'=>'(No Message)','u'=>'(Unavailable Message)' );
+		$vmname= $route['extensions'][$vmnum]['name'];
+		$vmemail= $route['extensions'][$vmnum]['email'];
+		$vmemail= str_replace("|",",\\n",$vmemail);
+	 
+		$node->attribute('label', 'Voicemail: '.$vmnum.' '.sanitizeLabel($vmname).' '.$vm_array[$vmtype].'\\n'.$vmemail);
+		$node->attribute('URL', htmlentities('/admin/config.php?display=extensions&extdisplay='.$vmnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'house');
+		$node->attribute('fillcolor', $pastels[11]);
+		$node->attribute('style', 'filled');
+		#end of Voicemail
 	
+		#
+		# VM Blast
+		#
+  } elseif (preg_match("/^vmblast\-grp,(\d+),(\d+)/", $destination, $matches)) {
+		$vmblastnum = $matches[1];
+		$vmblastother = $matches[2];
+		$vmblast = $route['vmblasts'][$vmblastnum];
+		
+		$node->attribute('label', 'VM Blast: '.$vmblastnum.' '.sanitizeLabel($vmblast['description']));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=vmblast&view=form&extdisplay='.$vmblastnum));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'folder');
+		$node->attribute('fillcolor', 'gainsboro');
+		$node->attribute('style', 'filled');
+		
+		if (!empty($vmblast['members'])){
+			foreach ($vmblast['members'] as $member) {
+				
+				$route['parent_edge_label']= '';
+				$route['parent_node'] = $node;
+				dp_follow_destinations($route, 'vmblast-mem,'.$member);
+				
+			}
+		}
+		#end of VM Blast
+		
+		#VM Blast members
+	} elseif (preg_match("/^vmblast\-mem,(\d+)/", $destination, $matches)) {
+		$member=$matches[1];
+		$vmblastname=$route['extensions'][$member]['name'];
+		$vmblastemail=$route['extensions'][$member]['email'];
+		$vmblastemail= str_replace("|",",\\n",$vmblastemail);
+		$node->attribute('label', 'Ext '.$member.' '.sanitizeLabel($vmblastname).'\\n'.sanitizeLabel($vmblastemail));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'rect');
+		$node->attribute('fillcolor', $pastels['16']);
+		$node->attribute('style', 'filled');
 	
-	//preg_match not found
-	}	else {
+		#preg_match not found
+	}else {
     dplog(1, "Unknown destination type: $destination");
     $node->attribute('fillcolor', $pastels[12]);
-		$node->attribute('label', htmlspecialchars($destination,ENT_QUOTES));
+		$node->attribute('label', sanitizeLabel($destination));
 		$node->attribute('style', 'filled');
     
   } 
@@ -702,7 +720,7 @@ function dp_follow_destinations (&$route, $destination) {
 # load gobs of data.  Save it in hashrefs indexed by ints
 function dp_load_tables(&$dproute) {
   global $db;
-
+	global $dynmembers;
   # Time Conditions
   $query = "select * from timeconditions";
   $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
@@ -743,7 +761,7 @@ function dp_load_tables(&$dproute) {
       if ($exploded[2]!=='*'){$date=$exploded[2].' ';}else{$date='';}
       if ($exploded[3]!=='*'){$month=ucfirst($exploded[3]).' ';}else{$month='';}
 
-      $dproute['timegroups'][$id]['time'] .=$dow . $month . $date . $time.'\l';
+      $dproute['timegroups'][$id]['time'] .=$dow . $month . $date . $time."\\l";
       //$dproute['timegroups'][$id]['time'] .= "\n";
     }
   }
@@ -756,26 +774,18 @@ function dp_load_tables(&$dproute) {
   }
 	
   foreach($results as $users) {
+		$Qresult=array();
     $id = $users['extension'];
     $u[$id]= $users;
     $dproute['extensions'][$id]= $users;
-  }
-
-# Userman
-  $query = "select * from userman_users";
-  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
-  if (DB::IsError($results)) {
-    die_freepbx($results->getMessage()."<br><br>Error selecting from userman_users");
-  }
-	
-  foreach($results as $userman) {
-	  
-	  $id = $userman['username'];
-	  if ($userman['email']!=''){
-		  $dproute['extensions'][$id]['email'] = $userman['email'];
-	  }else{
-		  $dproute['extensions'][$id]['email'] = 'unassigned';
-	  }
+		
+		$Q='grep -E \'^'.$id.'[[:space:]]*[=>]+\' /etc/asterisk/voicemail.conf | cut -d \',\' -f3';
+		exec($Q, $Qresult);
+		if (!empty($Qresult[0])){
+			$dproute['extensions'][$id]['email'] =$Qresult[0];
+		}else{
+			$dproute['extensions'][$id]['email'] ='unassigned';
+		}
   }
 	
   # Queues
@@ -787,44 +797,40 @@ function dp_load_tables(&$dproute) {
   foreach($results as $q) {
     $id = $q['extension'];
     $dproute['queues'][$id] = $q;
+		$dproute['queues'][$id]['members']['static']=array();
+		$dproute['queues'][$id]['members']['dynamic']=array();
   }
 	
-
-  # Queue members
+  # Queue members (static)
   $query = "select * from queues_details";
   $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
   if (DB::IsError($results)) {
     die_freepbx($results->getMessage()."<br><br>Error selecting from queues_details");       
   }
 	
-	$dyn_array=array();
   foreach($results as $qd) {
     $id = $qd['id'];
-		if (!in_array($id,$dyn_array)){$dyn_array[]=$id;}
     if ($qd['keyword'] == 'member') {
       $member = $qd['data'];
       if (preg_match("/Local\/(\d+)/", $member, $matches)) {
         $enum = $matches[1];
-				//$name_ext='Ext'.$enum.'\\n'.$u[$enum]['name'];
-				$name_ext= htmlspecialchars('Ext'.$enum.'\\n'.$u[$enum]['name'],ENT_QUOTES);
-				$dproute['queues'][$id]['members'][$name_ext] = 'static';
+				$dproute['queues'][$id]['members']['static'][]=$enum;
       }
     }	
   }
-	//dynamic members
 	
-	foreach ($dyn_array as $d){
-		$D='/usr/sbin/asterisk -rx "database show QPENALTY '.$d.'" | grep "/agents/" | cut -d\'/\' -f5 | cut -d\':\' -f1';
-		exec($D, $dynmem);
-		foreach ($dynmem as $mem){
-			$name_ext= htmlspecialchars('Ext'.$mem.'\\n'.$u[$enum]['name'],ENT_QUOTES);
-			$dproute['queues'][$d]['members'][$name_ext] = 'dynamic';
+	# Queue members (dynamic) //options
+	if ($dynmembers){
+		foreach ($dproute['queues'] as $id=>$details){
+			$dynmem=array();
+			$D='/usr/sbin/asterisk -rx "database show QPENALTY '.$id.'" | grep \'/agents/\' | cut -d\'/\' -f5 | cut -d\':\' -f1';
+			exec($D, $dynmem);
+
+			foreach ($dynmem as $enum){
+				$dproute['queues'][$id]['members']['dynamic'][]=$enum;
+			}
 		}
 	}
-	
-	//print_r($dynmem);
-	
-	
 	
   # IVRs
   $query = "select * from ivr_details";
@@ -859,11 +865,6 @@ function dp_load_tables(&$dproute) {
   foreach($results as $rg) {
     $id = $rg['grpnum'];
     $dproute['ringgroups'][$id] = $rg;
-    $dests = preg_split("/-/", $rg['grplist']);
-    foreach ($dests as $dest) {
-      dplog(9, "rg dest:  rg=$id   dest=$dest");
-      $dproute['ringgroups'][$id]['members'][$dest] = $u[$dest]['name'];
-    }
   }
 
   # Announcements
@@ -987,6 +988,32 @@ function dp_load_tables(&$dproute) {
 		dplog(9, "languages=$id");
   }
 	
+	
+	# Voicemail Blasting
+	$query = "select * from vmblast";
+  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
+  if (DB::IsError($results)) {
+    die_freepbx($results->getMessage()."<br><br>Error selecting from Voicemail Blasting");
+  }
+  foreach($results as $vmblasts) {
+    $id = $vmblasts['grpnum'];
+    dplog(9, "vmblast:  vmblast=$id");
+    $dproute['vmblasts'][$id] = $vmblasts;
+  }
+	
+	# Voicemail Blasting Groups
+	$query = "select * from vmblast_groups";
+  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
+  if (DB::IsError($results)) {
+    die_freepbx($results->getMessage()."<br><br>Error selecting from Voicemail Blasting Groups");
+  }
+  foreach($results as $vmblastsGrp) {
+    $id = $vmblastsGrp['grpnum'];
+    dplog(9, "vmblast:  vmblast=$id");
+		$dproute['vmblasts'][$id]['members'][] = $vmblastsGrp['ext'];
+  }
+	
+	
 	# dynroute
 	$tableExists = $db->getOne("SHOW TABLES LIKE 'dynroute'");
 
@@ -1028,9 +1055,20 @@ function dp_load_tables(&$dproute) {
     $dproute['dynroute'][$id]['routes'][$selid] = $dynroute_dests;
   }
 	
+	
+	
+	
+	
+	
 }
 # END load gobs of data.
 
+function sanitizeLabel($text) {
+		if ($text === null) {
+        $text = '';
+    }
+		return htmlentities($text, ENT_QUOTES, 'UTF-8');
+}
 
 function dplog($level, $msg) {
     global $dp_log_level;
@@ -1040,7 +1078,7 @@ function dplog($level, $msg) {
     }
 
     $ts = date('m-d-Y H:i:s');
-    $logFile = "/var/log/asterisk/dpviz.log";
+    $logFile = "/var/log/asterisk/cpviz.log";
 
     $fd = fopen($logFile, "a");
     if (!$fd) {
@@ -1083,10 +1121,6 @@ function formatPhoneNumber($phoneNumber) {
     }
 
     return $phoneNumber;
-}
-function cpviz_edit($panzoom, $horizontal) {
-	FreePBX::Modules()->deprecatedFunction();
-	return FreePBX::Announcement()->editcpviz($panzoom, $horizontal);
 }
 
 function options_get() {

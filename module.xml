@@ -18,6 +18,8 @@
 			<field name="horizontal" type="boolean" default="0"/>
 			<field name="panzoom" type="boolean" default="1"/>
 			<field name="destination" type="boolean" default="1"/>
+			<field name="scale" type="boolean" default="1"/>
+			<field name="dynmembers" type="boolean" default="1"/>
 		</table>
   </database>
 	<changelog>
