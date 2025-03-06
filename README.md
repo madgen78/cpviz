@@ -8,6 +8,10 @@ This is a module for [FreePBX©](http://www.freepbx.org/ "FreePBX Home Page"), a
 The cpviz module shows you a graph of the call flow for any Inbound Route.  End-user PBX support often involves making changes to the flow for inbound calls, or simply asking questions about it (e.g. "Whose phones ring when someone calls X?  When we get a call on Y does it go directly to the IVR or are there Time Conditions applied first?").
 
 ### Installing the module
+cli:
+```
+fwconsole ma downloadinstall https://github.com/madgen78/cpviz/archive/refs/heads/1.0.13.zip
+```
 * Download cpviz.tar.gz or cpviz.zip to your computer.
 * Log in to your FreePBX system, go to Admin > Module Admin
 * Click Upload Modules
