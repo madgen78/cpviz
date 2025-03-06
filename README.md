@@ -8,25 +8,28 @@ This is a module for [FreePBX©](http://www.freepbx.org/ "FreePBX Home Page"), a
 The cpviz module shows you a graph of the call flow for any Inbound Route.  End-user PBX support often involves making changes to the flow for inbound calls, or simply asking questions about it (e.g. "Whose phones ring when someone calls X?  When we get a call on Y does it go directly to the IVR or are there Time Conditions applied first?").
 
 ### Installing the module
-cli:
+Command line:
 ```
 fwconsole ma downloadinstall https://github.com/madgen78/cpviz/archive/refs/heads/1.0.13.zip
 ```
+
+--OR--
+
 * Download cpviz.tar.gz or cpviz.zip to your computer.
 * Log in to your FreePBX system, go to Admin > Module Admin
 * Click Upload Modules
-* Download from web: https://github.com/madgen78/cpviz/archive/refs/heads/master.zip
+* Download from web: https://github.com/madgen78/cpviz/archive/refs/heads/1.0.13.zip
 * OR
 * Set the type to "Upload (From Hard Disk)"
-* Select "Choose File" to select cpviz.tar.gz or cpviz.zip, then click "Upload (From Hard Disk)"
+* Select "Choose File" to select the file downloaded, then click "Upload (From Hard Disk)"
 * Click the "local module administration" link
 * Scroll down to Dial Plan Visualizer in the Reports section, click it, then click the Install action.
 * Click the Process button at the bottom of the page.
 
 ### Using the module
 * Log in to your PBX, go to Reports > Dial Plan Visualizer
-* Select an inbound route from the drop-down menu
-* Click "Visualize Dial Plan"
+* Select an inbound route from the side menu.
+
 
 The graph for that route should be displayed.  
 The graph is interractive.  
@@ -39,7 +42,6 @@ The graph is interractive.
 [This modules code is licensed as GPLv3+](http://www.gnu.org/licenses/gpl-3.0.txt)
 
 ### Issues
-* Duplicate paths are now drawn.
-* Caller ID routes are now working.
-* 
+* No known issues at this time.
+
 Please file bug reports by email to adam.volchko@gmail.com
