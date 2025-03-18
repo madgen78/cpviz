@@ -72,7 +72,7 @@ function dp_follow_destinations (&$route, $destination) {
 	global $direction;
 
   if (! isset ($route['dpgraph'])) {
-    $route['dpgraph'] = new Alom\Graphviz\Digraph($route['extension']);
+    $route['dpgraph'] = new Alom\Graphviz\Digraph('"'.$route['extension'].'"');
 		$route['dpgraph']->attr('graph',array('rankdir'=>$direction));
   }
   $dpgraph = $route['dpgraph'];
