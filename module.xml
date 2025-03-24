@@ -1,21 +1,37 @@
 <module>
   <rawname>cpviz</rawname>
   <repo>unsupported</repo>
-  <name>Call Plan Visualizer</name>
-  <version>1.0.10</version>
-  <publisher>Southwest Cyberport, Inc.</publisher>
+  <name>Dial Plan Visualizer</name>
+  <version>1.0.14</version>
+  <publisher>ZTelco</publisher>
   <license>GPLv3+</license>
   <licenselink>http://www.gnu.org/licenses/gpl-3.0.txt</licenselink>
   <category>Reports</category>
-  <description>Graphical display of the call plan for any Inbound Route</description>
+  <description>Graphical display of the dial plan for any Inbound Route</description>
   <menuitems>
-    <cpviz>Call Plan Visualizer</cpviz>
+    <cpviz>Dial Plan Visualizer</cpviz>
   </menuitems>
+	<database>
+		<table name="cpviz">
+			<field name="id" type="integer" primarykey="true" autoincrement="true"/>
+			<field name="datetime" type="boolean" default="1"/>
+			<field name="horizontal" type="boolean" default="0"/>
+			<field name="panzoom" type="boolean" default="1"/>
+			<field name="destination" type="boolean" default="1"/>
+			<field name="scale" type="boolean" default="1"/>
+			<field name="dynmembers" type="boolean" default="1"/>
+		</table>
+  </database>
 	<changelog>
+		*1.0.14* Updated for ANY route. Updated for E.164 format. Added Highlighting. 
+		*1.0.13* Formatted module. Added Dynamic Routes. Big overhaul of code. 
+		*1.0.12* Added panzoom
+		*1.0.11* Updated name and email for Voicemail
+		*1.0.10* AdamV expanded on initial
 		*1.0.8* First fully working release
 		*1.0.0* First release, testing module creation 
 	</changelog>
-  <info>https://www.swcp.com/freepbx</info>
+  <info>https://www.ztelco.com/</info>
   <md5sum>c62830a311338fa38b1aa0e9f9284fc3</md5sum>
   <supported>
     <version>12.0</version>
