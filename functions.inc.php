@@ -167,18 +167,20 @@ function dp_follow_destinations (&$route, $destination) {
 		$another = $matches[2];
 
 		$an = $route['announcements'][$annum];
-
+		$recID=$an['recording_id'];
+		
+		$announcement = isset($route['recordings'][$recID]) ? $route['recordings'][$recID]['displayname'] : 'None';
 		#feature code exist?
-		if ( isset($route['featurecodes']['*29'.$an['recording_id']]) ){
+		if ( isset($route['featurecodes']['*29'.$recID]) ){
 			#custom feature code?
 			if ($route['featurecodes']['*29'.$an['recording_id']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$an['recording_id']]['defaultcode'];}
 			#is it enabled?
-			if ( ($route['recordings'][$an['recording_id']]['fcode']== '1') && ($route['featurecodes']['*29'.$an['recording_id']]['enabled']=='1') ){$rec='\\nRecord(yes): '.$featurenum;}else{$rec='\\nRecord(no): '.$featurenum;}
+			if ( ($route['recordings'][$recID]['fcode']== '1') && ($route['featurecodes']['*29'.$recID]['enabled']=='1') ){$rec='\\nRecord(yes): '.$featurenum;}else{$rec='\\nRecord(no): '.$featurenum;}
 		}else{
 			$rec='\\nRecord(no): disabled';
 		}
-
-		$node->attribute('label', 'Announcements: '.sanitizeLabel($an['description']).$rec);
+		
+		$node->attribute('label', 'Announcements: '.sanitizeLabel($an['description']).'\\nRecording: '.sanitizeLabel($announcement).$rec);
 		$node->attribute('URL', htmlentities('/admin/config.php?display=announcement&view=form&extdisplay='.$annum));
 		$node->attribute('target', '_blank');
 		$node->attribute('shape', 'note');
@@ -303,7 +305,10 @@ function dp_follow_destinations (&$route, $destination) {
   } elseif (preg_match("/^dynroute-(\d+)/", $destination, $matches)) {
 		$dynnum = $matches[1];
 		$dynrt = $route['dynroute'][$dynnum];
-		$announcement = isset($route['recordings'][$dynrt['announcement_id']]['displayname']) ? $route['recordings'][$dynrt['announcement_id']]['displayname'] : null;
+		
+		$recID=$dynrt['announcement_id'];
+		
+		$announcement = isset($route['recordings'][$recID]) ? $route['recordings'][$recID]['displayname'] : 'None';
 		$node->attribute('label', 'DYN: '.sanitizeLabel($dynrt['name']).'\\nAnnouncement: '.sanitizeLabel($announcement));
 		$node->attribute('URL', htmlentities('/admin/config.php?display=dynroute&action=edit&id='.$dynnum));
 		$node->attribute('target', '_blank');
@@ -376,6 +381,33 @@ function dp_follow_destinations (&$route, $destination) {
 		#end of Feature Codes
 
 		#
+		# Inbound Routes
+		#
+  } elseif (preg_match("/^from-trunk,([^,]*),(\d+)/", $destination, $matches)) {
+		
+		$num = $matches[1];
+		$numother = $matches[2];
+
+		$incoming = $route['incoming'][$num];
+		
+		$didLabel = ($num == '') ? 'ANY' : formatPhoneNumber($num);
+		$didLabel.="\n".$incoming['description'];
+		$didLink=$num.'/';
+		
+		$node->attribute('label', sanitizeLabel($didLabel));
+		$node->attribute('URL', htmlentities('/admin/config.php?display=did&view=form&extdisplay='.urlencode($didLink)));
+		$node->attribute('target', '_blank');
+		$node->attribute('shape', 'cds');
+		$node->attribute('fillcolor', 'darkseagreen');
+		$node->attribute('style', 'filled');
+		
+		$route['parent_edge_label']= ' Continue';
+		$route['parent_node'] = $node;
+		dp_follow_destinations($route, $incoming['destination']);
+
+		#end of Inbound Routes
+
+		#
 		# IVRs
 		#
   } elseif (preg_match("/^ivr-(\d+),([a-z]+),(\d+)/", $destination, $matches)) {
@@ -384,14 +416,15 @@ function dp_follow_destinations (&$route, $destination) {
     $iother = $matches[3];
 
     $ivr = $route['ivrs'][$inum];
-	  $ivrRecName = !empty($ivr['announcement']) ? $route['recordings'][$ivr['announcement']]['displayname'] : 'None';
+		$recID= $ivr['announcement'];
+		$ivrRecName = isset($route['recordings'][$recID]) ? $route['recordings'][$recID]['displayname'] : 'None';
 		
     #feature code exist?
     if ( isset($route['featurecodes']['*29'.$ivr['announcement']]) ){
       #custom feature code?
       if ($route['featurecodes']['*29'.$ivr['announcement']]['customcode']!=''){$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['customcode'];}else{$featurenum=$route['featurecodes']['*29'.$ivr['announcement']]['defaultcode'];}
       #is it enabled?
-      if ( ($route['recordings'][$ivr['announcement']]['fcode']== '1') && ($route['featurecodes']['*29'.$ivr['announcement']]['enabled']=='1') ){$rec='(yes): '.$featurenum;}else{$rec='(no): '.$featurenum;}
+      if ( ($route['recordings'][$recID]['fcode']== '1') && ($route['featurecodes']['*29'.$recID]['enabled']=='1') ){$rec='(yes): '.$featurenum;}else{$rec='(no): '.$featurenum;}
     }else{
       $rec='(no): disabled';
     }
@@ -481,7 +514,7 @@ function dp_follow_destinations (&$route, $destination) {
   } elseif (preg_match("/^play-system-recording,(\d+),(\d+)/", $destination, $matches)) {
 		$recID = $matches[1];
 		$recIDOther = $matches[2];
-		$playName=$route['recordings'][$recID]['displayname'];
+		$playName = isset($route['recordings'][$recID]) ? $route['recordings'][$recID]['displayname'] : 'None';
 		$node->attribute('label', 'Play Recording: '.sanitizeLabel($playName));
 		$node->attribute('URL', htmlentities('/admin/config.php?display=recordings&action=edit&id='.$recID));
 		$node->attribute('target', '_blank');
@@ -831,6 +864,17 @@ function dp_load_tables(&$dproute) {
 			}
 		}
 	}
+	
+	# Inbound Routes
+  $query = "select * from incoming";
+  $results = $db->getAll($query, DB_FETCHMODE_ASSOC);
+  if (DB::IsError($results)) {
+    die_freepbx($results->getMessage()."<br><br>Error selecting from incoming");
+  }
+  foreach($results as $incoming) {
+    $id = $incoming['extension'];
+    $dproute['incoming'][$id] = $incoming;
+  }	
 	
   # IVRs
   $query = "select * from ivr_details";
