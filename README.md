@@ -50,4 +50,4 @@ The graph is interractive.
 ### Issues
 * No known issues at this time.
 
-Please send bug reports by email to adam.volchko@gmail.com
+
