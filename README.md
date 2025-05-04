@@ -74,4 +74,4 @@ fwconsole ma downloadinstall https://github.com/madgen78/cpviz/archive/refs/head
 ### Issues
 * No known issues at this time.
 
-Please send bug reports by email to adam.volchko@gmail.com
+
