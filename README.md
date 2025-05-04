@@ -38,4 +38,4 @@ The graph is interractive.
 * Duplicate paths are now drawn.
 * Caller ID routes are now working.
 * 
-Please file bug reports by email to adam.volchko@gmail.com
+
