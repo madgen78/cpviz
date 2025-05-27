@@ -45,3 +45,14 @@ svg {
 #graph0 {
 	border: none;
 }
+
+.selected ellipse {
+	fill: #ff0000 !important;
+}
+.highlighted-edge path {
+	stroke: #ff0000 !important;
+	stroke-width: 3px !important;
+}
+.highlighted-edge polygon {
+	fill: #ff0000 !important;
+}

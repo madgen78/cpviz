@@ -47,7 +47,7 @@ $("#cpviz-side").on('click-row.bs.table',function(e,row,elem){
 });
 
 function bootnavvizFormatter(value, row) {
-    var extension = row['extension'].trim() || "ANY";
+    var extension = decodeURIComponent(row['extension']).trim() || "ANY";
     var cidnum = decodeURIComponent(row['cidnum']).trim();
     
     // Return only the extension if cidnum is empty
@@ -55,7 +55,7 @@ function bootnavvizFormatter(value, row) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    <?php if (empty($_REQUEST['extdisplay'])) : ?>
+    <?php if (!isset($_GET['extdisplay'])) : ?>
         // Wait for the element to exist before modifying it
         let checkExist = setInterval(function () {
             let navbar = document.getElementById("floating-nav-bar");

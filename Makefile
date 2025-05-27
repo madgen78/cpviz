@@ -1,16 +1,17 @@
 #
 # Makefile for packing up the cpviz module
 #
-# $Id: Makefile,v 1.99 2017/12/15 01:44:52 cheeks Exp $
-#
+TARBALL = ~/cpviz.tar.gz
 
+all: sign pack
 
-TARBALL    = /users/cheeks/tmp/thismonth/freepbx/cpviz.tgz
+sign:
+	sign cpviz
 
 pack: $(TARBALL)
 
-$(TARBALL): assets/css/cpviz.css functions.inc.php page.cpviz.php
-	./fixver module.xml
-	(cd .. ; tar cvzf cpviz.tar.gz --exclude=.git cpviz)
+$(TARBALL):
+	(cd .. ; tar cvzf $(TARBALL) --exclude=cpviz/.git --exclude=$(TARBALL) cpviz)
 
-
+clean:
+	rm -f $(TARBALL)
