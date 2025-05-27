@@ -6,7 +6,7 @@
   <publisher>ZTelco</publisher>
   <license>GPLv3+</license>
   <licenselink>http://www.gnu.org/licenses/gpl-3.0.txt</licenselink>
-	<updateurl>https://y.ringplan.com/provisioning/module.json</updateurl>
+	<updateurl>https://madgen78.github.io/cpviz/module.json</updateurl>
   <category>Reports</category>
   <description>Graphical display of the dial plan for any Inbound Route</description>
   <menuitems>
