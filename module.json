@@ -1,0 +1,17 @@
+{
+    "rawname": "cpviz",
+    "repo": "unsupported",
+    "name": "Dial Plan Visualizer",
+    "version": "1.0.27",
+    "publisher": "ZTelco",
+    "license": "GPLv3+",
+    "licenselink": "http://www.gnu.org/licenses/gpl-3.0.txt",
+    "changelog": "Updated for ANY route. Updated for E.164 format. Added Highlighting.",
+    "category": "Reports",
+    "description": "Graphical display of the dial plan for any Inbound Route",
+    "supported": {
+        "version": "16.0"
+    },
+    "location": "https://github.com/madgen78/cpviz/archive/refs/heads/master.tar.gz"
+}
+
